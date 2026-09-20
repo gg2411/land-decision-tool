@@ -232,6 +232,7 @@ $("drawBtn").addEventListener("click", () => {
     $("drawBtn").textContent = "Draw a custom area instead";
     if (drawPoints.length >= 3) {
       polygon = drawPoints.map((p) => [p.lat, p.lng]);
+      if (lotMarker) { map.removeLayer(lotMarker); lotMarker = null; }
       if (polyLayer) map.removeLayer(polyLayer);
       polyLayer = L.polygon(polygon, { color: "#1f5c9e", weight: 2, fillOpacity: 0.07 }).addTo(map);
       $("lotHint").textContent = `Custom area set (${polygon.length} points).`;
@@ -422,6 +423,10 @@ function render(data) {
         ${row("Size needed for your price", cs.sqftNeededForSalePrice.toLocaleString() + " sq ft")}
       </table>`;
   }
+
+  // A deal can be priced off the typed sale price even when nothing sold nearby;
+  // say so rather than letting a verdict imply market support.
+  if (data.error) html += `<div class="note bad">${esc(data.error)}</div>`;
 
   (d.warnings || []).forEach((w) => { html += `<div class="note warn">${esc(w)}</div>`; });
 
