@@ -1,0 +1,12 @@
+{
+  "name": "land-decision-tool",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "start": "node dev-server.js",
+    "test": "node --test test/*.test.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
