@@ -1,5 +1,4 @@
 const {
-  polygonBbox,
   filterToPolygon,
   summarizeComps,
   computeMaxLandPrice,
@@ -40,15 +39,20 @@ module.exports = async (req, res) => {
       return;
     }
 
-    const apiKey = process.env.HAR_API_KEY;
-    const dataset = process.env.HAR_DATASET || "har";
+    const apiKey = process.env.REPLIERS_API_KEY || process.env.HAR_API_KEY;
+    const boardId = process.env.REPLIERS_BOARD_ID;
     let dataSource = "mock";
     let data;
 
     if (apiKey) {
       dataSource = "live";
-      const bbox = polygonBbox(polygon);
-      data = await fetchAllStatuses(apiKey, dataset, bbox, { top: 200, maxPages: 5 });
+      // Repliers supports polygon filtering natively, so we pass the exact
+      // drawn polygon (not a bounding box) straight through.
+      data = await fetchAllStatuses(apiKey, null, polygon, {
+        resultsPerPage: 200,
+        maxPages: 5,
+        boardId,
+      });
     } else {
       data = mockDataset(polygon);
     }
