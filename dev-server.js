@@ -3,6 +3,7 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const handler = require("./api/analyze");
+const dealHandler = require("./api/deal");
 
 const PORT = Number(process.env.PORT || 3000);
 
@@ -13,7 +14,7 @@ const server = http.createServer((req, res) => {
     fs.createReadStream(path.join(__dirname, "index.html")).pipe(res);
     return;
   }
-  if (url === "/api/analyze") {
+  if (url === "/api/analyze" || url === "/api/deal") {
     let raw = "";
     let tooLarge = false;
     req.on("data", (c) => {
@@ -45,7 +46,7 @@ const server = http.createServer((req, res) => {
           res.end(JSON.stringify(obj));
         },
       };
-      await handler(req, shim);
+      await (url === "/api/deal" ? dealHandler : handler)(req, shim);
     });
     return;
   }
