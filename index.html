@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Land Decision Tool — Houston</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #171a21;
+    --panel-2: #1e222b;
+    --border: #2a2f3a;
+    --text: #e8eaed;
+    --muted: #9aa1ac;
+    --accent: #4f8cff;
+    --good: #38c172;
+    --warn: #e0a13e;
+    --bad: #e0554e;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+  }
+  #map { flex: 1 1 auto; height: 100%; }
+  #sidebar {
+    width: 380px;
+    flex: 0 0 380px;
+    background: var(--panel);
+    border-left: 1px solid var(--border);
+    padding: 18px;
+    overflow-y: auto;
+  }
+  h1 { font-size: 17px; margin: 0 0 4px; }
+  .subtitle { color: var(--muted); font-size: 12.5px; margin-bottom: 16px; }
+  .badge {
+    display: inline-block;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    margin-bottom: 14px;
+  }
+  .badge.live { color: var(--good); border-color: var(--good); }
+  .badge.mock { color: var(--warn); border-color: var(--warn); }
+  fieldset {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 14px;
+    padding: 10px 12px 12px;
+  }
+  legend { font-size: 12px; color: var(--muted); padding: 0 4px; }
+  label { display: block; font-size: 12.5px; color: var(--muted); margin-top: 8px; }
+  input {
+    width: 100%;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    padding: 6px 8px;
+    font-size: 13px;
+    margin-top: 3px;
+  }
+  .row { display: flex; gap: 8px; }
+  .row > div { flex: 1; }
+  button {
+    cursor: pointer;
+    border: none;
+    border-radius: 8px;
+    padding: 9px 12px;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  #drawBtn { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); width: 100%; margin-bottom: 8px; }
+  #drawBtn.active { border-color: var(--accent); color: var(--accent); }
+  #analyzeBtn { background: var(--accent); color: white; width: 100%; margin-top: 4px; }
+  #analyzeBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+  #results { margin-top: 16px; }
+  .kv { display: flex; justify-content: space-between; font-size: 13px; padding: 3px 0; }
+  .kv .k { color: var(--muted); }
+  .headline {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px;
+    margin: 10px 0;
+    text-align: center;
+  }
+  .headline .num { font-size: 26px; font-weight: 700; color: var(--good); }
+  .headline .lbl { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+  .sens { display: flex; gap: 8px; margin-top: 8px; }
+  .sens > div { flex: 1; background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; padding: 8px; text-align: center; }
+  .sens .n { font-size: 15px; font-weight: 700; }
+  .sens .l { font-size: 10.5px; color: var(--muted); }
+  .err { color: var(--bad); font-size: 13px; margin-top: 10px; }
+  .hint { font-size: 11.5px; color: var(--muted); margin-top: 6px; line-height: 1.4; }
+  #legend-box {
+    position: absolute; bottom: 20px; left: 20px; z-index: 500;
+    background: rgba(23,26,33,0.9); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 12px; font-size: 12px; color: var(--text);
+  }
+  #legend-box span { display: inline-flex; align-items: center; margin-right: 12px; }
+  #legend-box i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; margin-right: 5px; }
+</style>
+</head>
+<body>
+  <div id="map"></div>
+  <div id="legend-box">
+    <span><i style="background:#4f8cff"></i>Sold comp</span>
+    <span><i style="background:#e0a13e"></i>Pending</span>
+    <span><i style="background:#38c172"></i>Active</span>
+  </div>
+
+  <div id="sidebar">
+    <h1>Land Decision Tool</h1>
+    <div class="subtitle">Draw a polygon → set your floor plan &amp; costs → get the max land price you should pay.</div>
+    <div id="sourceBadge" class="badge">checking data source…</div>
+
+    <button id="drawBtn">✎ Draw new polygon on map</button>
+
+    <fieldset>
+      <legend>Floor plan</legend>
+      <div class="row">
+        <div><label>Living area (sqft)<input id="sqft" type="number" value="2400" /></label></div>
+        <div><label>Beds<input id="beds" type="number" value="4" /></label></div>
+        <div><label>Baths<input id="baths" type="number" value="3" step="0.5" /></label></div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Cost assumptions</legend>
+      <label>Construction cost ($/sqft)<input id="constCost" type="number" value="185" /></label>
+      <div class="row">
+        <div><label>Selling cost (%)<input id="sellPct" type="number" value="7" /></label></div>
+        <div><label>Target margin (%)<input id="marginPct" type="number" value="15" /></label></div>
+      </div>
+      <label>Site dev / permits ($)<input id="siteDev" type="number" value="35000" /></label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Split-lot scenario (optional)</legend>
+      <div class="row">
+        <div><label>Total lot price ($)<input id="splitPrice" type="number" placeholder="e.g. 650000" /></label></div>
+        <div><label>Total lot sqft<input id="splitSqft" type="number" placeholder="e.g. 14000" /></label></div>
+        <div><label># splits<input id="splitN" type="number" value="2" /></label></div>
+      </div>
+    </fieldset>
+
+    <button id="analyzeBtn">Analyze</button>
+    <div class="hint" id="polyHint">Using a default sample polygon. Click "Draw new polygon" to pick your own area.</div>
+
+    <div id="results"></div>
+  </div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+const map = L.map('map', { zoomControl: true }).setView([29.72, -95.405], 13);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '&copy; OpenStreetMap contributors',
+  maxZoom: 19,
+}).addTo(map);
+
+// Default sample polygon (roughly inner-loop Houston) so the tool is usable immediately.
+let polygon = [
+  [29.735, -95.42],
+  [29.735, -95.39],
+  [29.705, -95.39],
+  [29.705, -95.42],
+];
+let polyLayer = L.polygon(polygon, { color: '#4f8cff', weight: 2, fillOpacity: 0.08 }).addTo(map);
+let compsLayer = L.layerGroup().addTo(map);
+
+let drawing = false;
+let drawPoints = [];
+let drawLayer = null;
+
+document.getElementById('drawBtn').addEventListener('click', () => {
+  drawing = !drawing;
+  const btn = document.getElementById('drawBtn');
+  if (drawing) {
+    btn.classList.add('active');
+    btn.textContent = '✓ Click map to add points, click here when done';
+    drawPoints = [];
+    if (drawLayer) map.removeLayer(drawLayer);
+    if (polyLayer) map.removeLayer(polyLayer);
+  } else {
+    btn.classList.remove('active');
+    btn.textContent = '✎ Draw new polygon on map';
+    if (drawPoints.length >= 3) {
+      polygon = drawPoints.map(p => [p.lat, p.lng]);
+      if (drawLayer) map.removeLayer(drawLayer);
+      polyLayer = L.polygon(polygon, { color: '#4f8cff', weight: 2, fillOpacity: 0.08 }).addTo(map);
+      document.getElementById('polyHint').textContent = `Custom polygon set (${polygon.length} points).`;
+    } else {
+      // not enough points, restore old polygon
+      polyLayer = L.polygon(polygon, { color: '#4f8cff', weight: 2, fillOpacity: 0.08 }).addTo(map);
+    }
+  }
+});
+
+map.on('click', (e) => {
+  if (!drawing) return;
+  drawPoints.push(e.latlng);
+  if (drawLayer) map.removeLayer(drawLayer);
+  drawLayer = L.polyline(drawPoints, { color: '#e0a13e', weight: 2, dashArray: '4,4' }).addTo(map);
+  drawPoints.forEach(p => L.circleMarker(p, { radius: 4, color: '#e0a13e' }).addTo(drawLayer));
+});
+
+async function checkSource() {
+  // Lightweight ping: analyze with the current polygon just to read dataSource back.
+  // (Kept silent — no results rendered from this call.)
+}
+
+function fmtMoney(n) {
+  if (n == null || isNaN(n)) return '—';
+  return '$' + Math.round(n).toLocaleString();
+}
+
+async function analyze() {
+  const btn = document.getElementById('analyzeBtn');
+  btn.disabled = true;
+  btn.textContent = 'Analyzing…';
+
+  const body = {
+    polygon,
+    plan: {
+      livingAreaSqft: Number(document.getElementById('sqft').value),
+      beds: Number(document.getElementById('beds').value),
+      baths: Number(document.getElementById('baths').value),
+    },
+    costs: {
+      constructionCostPerSqft: Number(document.getElementById('constCost').value),
+      sellingCostPct: Number(document.getElementById('sellPct').value) / 100,
+      targetMarginPct: Number(document.getElementById('marginPct').value) / 100,
+      siteDevCost: Number(document.getElementById('siteDev').value),
+    },
+  };
+
+  const splitPrice = document.getElementById('splitPrice').value;
+  const splitSqft = document.getElementById('splitSqft').value;
+  if (splitPrice && splitSqft) {
+    body.splitScenario = {
+      totalLotPrice: Number(splitPrice),
+      totalLotSqft: Number(splitSqft),
+      nSplits: Number(document.getElementById('splitN').value || 2),
+    };
+  }
+
+  try {
+    const resp = await fetch('/api/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await resp.json();
+    render(data);
+  } catch (err) {
+    document.getElementById('results').innerHTML = `<div class="err">Request failed: ${err}</div>`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Analyze';
+  }
+}
+
+function render(data) {
+  const badge = document.getElementById('sourceBadge');
+  if (data.dataSource === 'live') {
+    badge.textContent = '● Live HAR data';
+    badge.className = 'badge live';
+  } else {
+    badge.textContent = '● Mock data (no HAR_API_KEY set)';
+    badge.className = 'badge mock';
+  }
+
+  compsLayer.clearLayers();
+  (data.compsPoints || []).forEach(p => {
+    if (p.lat == null || p.lon == null) return;
+    L.circleMarker([p.lat, p.lon], {
+      radius: 5, color: '#4f8cff', fillColor: '#4f8cff', fillOpacity: 0.7, weight: 1,
+    }).bindPopup(`${fmtMoney(p.price)} · ${p.sqft} sqft · $${p.ppsf}/sqft`).addTo(compsLayer);
+  });
+
+  const el = document.getElementById('results');
+  if (data.error) {
+    el.innerHTML = `<div class="err">${data.error}</div>`;
+    return;
+  }
+
+  const r = data.result;
+  const s = data.sensitivity;
+  let html = `
+    <div class="kv"><span class="k">Sold / Pending / Active in polygon</span><span>${data.counts.sold} / ${data.counts.pending} / ${data.counts.active}</span></div>
+    <div class="kv"><span class="k">Comps used (filtered)</span><span>${data.comps.n}</span></div>
+    <div class="kv"><span class="k">Median $/sqft</span><span>$${Math.round(data.comps.medianPricePerSqft || 0)}</span></div>
+
+    <div class="headline">
+      <div class="num">${fmtMoney(r.maxLandPrice)}</div>
+      <div class="lbl">MAX LAND PRICE (base case)</div>
+    </div>
+
+    <div class="kv"><span class="k">Estimated ARV</span><span>${fmtMoney(r.arv)}</span></div>
+    <div class="kv"><span class="k">Construction cost</span><span>${fmtMoney(r.constructionCost)}</span></div>
+    <div class="kv"><span class="k">Selling costs</span><span>${fmtMoney(r.sellingCost)}</span></div>
+    <div class="kv"><span class="k">Target profit</span><span>${fmtMoney(r.targetProfit)}</span></div>
+    <div class="kv"><span class="k">Site dev / permits</span><span>${fmtMoney(r.siteDevCost)}</span></div>
+
+    <div class="sens">
+      <div><div class="n">${fmtMoney(s.conservative.maxLandPrice)}</div><div class="l">CONSERVATIVE</div></div>
+      <div><div class="n">${fmtMoney(s.optimistic.maxLandPrice)}</div><div class="l">OPTIMISTIC</div></div>
+    </div>
+  `;
+
+  if (data.split) {
+    const sp = data.split;
+    html += `
+      <fieldset style="margin-top:14px;">
+        <legend>Split-lot result</legend>
+        <div class="kv"><span class="k">Price per lot (÷${sp.nSplits})</span><span>${fmtMoney(sp.perLotPrice)}</span></div>
+        <div class="kv"><span class="k">Max land price per lot</span><span>${fmtMoney(sp.maxLandPricePerLot)}</span></div>
+        <div class="kv"><span class="k">Profitable?</span><span style="color:${sp.profitable ? '#38c172' : '#e0554e'}">${sp.profitable ? 'Yes' : 'No'} (${fmtMoney(sp.marginVsMax)})</span></div>
+      </fieldset>
+    `;
+  }
+
+  el.innerHTML = html;
+}
+
+document.getElementById('analyzeBtn').addEventListener('click', analyze);
+
+// Run once on load with the default polygon so there's something to look at.
+analyze();
+</script>
+</body>
+</html>
