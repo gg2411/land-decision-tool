@@ -8,8 +8,64 @@ const {
   mockDataset,
   fetchAllStatuses,
 } = require("../lib/core");
+const { evaluateDeal, DEFAULT_COSTS } = require("../lib/proforma");
 const { fetchHcadParcels, summarizeLandValues } = require("../lib/hcad");
 const { fetchWebPpsf } = require("../lib/tavily");
+
+// Percentages arrive as fractions; anything outside these bands is a typo or a
+// broken client, and a pro forma built on it would look authoritative while
+// being meaningless.
+const PCT_RANGE = {
+  sellingCostPct: [0, 0.5],
+  targetMarginPct: [0, 1],
+  softCostPct: [0, 1],
+  contingencyPct: [0, 1],
+  loanRatePct: [0, 0.5],
+  loanToCostPct: [0, 1],
+  propertyTaxPct: [0, 0.2],
+};
+
+// The person using this is a builder, not the author of the request body, so an
+// error has to name the field the way the screen does.
+const FIELD_LABEL = {
+  cityFees: "Permits, survey, taps",
+  buildersRisk: "Builder's risk insurance",
+  months: "Months lot to sale",
+  sellingCostPct: "Commission + closing",
+  targetMarginPct: "Profit I want",
+  softCostPct: "Design + engineering",
+  contingencyPct: "Contingency",
+  loanRatePct: "Loan rate",
+  loanToCostPct: "Loan covers",
+  propertyTaxPct: "Property tax",
+};
+
+function validationError({ plan, costs, specCosts, lotPrice, salePrice }) {
+  if (!Number.isFinite(plan.livingAreaSqft) || plan.livingAreaSqft <= 0) {
+    return "Enter the size of the house in square feet.";
+  }
+  if (lotPrice != null && (!Number.isFinite(lotPrice) || lotPrice <= 0)) {
+    return "Enter what the lot costs.";
+  }
+  if (salePrice != null && (!Number.isFinite(salePrice) || salePrice <= 0)) {
+    return "Enter a sale price above zero, or leave it blank to use the comps.";
+  }
+  if (!Number.isFinite(costs.constructionCostPerSqft) || costs.constructionCostPerSqft <= 0) {
+    return "Enter a build cost per square foot above zero.";
+  }
+  for (const key of ["cityFees", "buildersRisk", "months"]) {
+    if (!Number.isFinite(specCosts[key]) || specCosts[key] < 0) {
+      return `"${FIELD_LABEL[key]}" must be zero or more.`;
+    }
+  }
+  for (const [key, [lo, hi]] of Object.entries(PCT_RANGE)) {
+    const v = specCosts[key];
+    if (!Number.isFinite(v) || v < lo || v > hi) {
+      return `"${FIELD_LABEL[key]}" must be between ${lo * 100}% and ${hi * 100}%.`;
+    }
+  }
+  return null;
+}
 
 const round2 = (n) => Math.round(n * 100) / 100;
 const round4 = (n) => Math.round(n * 10000) / 10000;
@@ -35,16 +91,28 @@ module.exports = async (req, res) => {
     const body = req.body || {};
     const polygon = body.polygon; // array of [lat, lon]
     const plan = {
-      livingAreaSqft: Number(body.plan?.livingAreaSqft ?? 2400),
+      // Only an absent key falls back to the default; an explicit null or blank
+      // means the caller cleared a required field and must be told so.
+      livingAreaSqft: Object.hasOwn(Object(body.plan ?? {}), "livingAreaSqft") ? Number(body.plan.livingAreaSqft) : 2400,
       beds: Number(body.plan?.beds ?? 4),
       baths: Number(body.plan?.baths ?? 3),
     };
     const costs = {
-      constructionCostPerSqft: Number(body.costs?.constructionCostPerSqft ?? 185),
-      sellingCostPct: Number(body.costs?.sellingCostPct ?? 0.07),
-      targetMarginPct: Number(body.costs?.targetMarginPct ?? 0.15),
+      constructionCostPerSqft: Number(body.costs?.constructionCostPerSqft ?? DEFAULT_COSTS.hardCostPerSqft),
+      sellingCostPct: Number(body.costs?.sellingCostPct ?? DEFAULT_COSTS.sellingCostPct),
+      targetMarginPct: Number(body.costs?.targetMarginPct ?? DEFAULT_COSTS.targetMarginPct),
       siteDevCost: Number(body.costs?.siteDevCost ?? 35000),
     };
+    // Full build-to-sell economics (soft costs, carry, financing, selling).
+    const specCosts = {
+      ...DEFAULT_COSTS,
+      ...(body.specCosts || {}),
+      hardCostPerSqft: costs.constructionCostPerSqft,
+      sellingCostPct: costs.sellingCostPct,
+      targetMarginPct: costs.targetMarginPct,
+    };
+    const lotPrice = body.lotPrice != null ? Number(body.lotPrice) : null;
+    const salePrice = body.salePrice != null ? Number(body.salePrice) : null;
     const cf = body.compsFilter || {};
     const rawSoldMonths = cf.soldWithinMonths ?? 12;
     const soldWithinMonths = rawSoldMonths ? Number(rawSoldMonths) : null; // explicit 0/blank = no limit
@@ -66,6 +134,12 @@ module.exports = async (req, res) => {
     }
     if (polygon.length > 500) {
       res.status(400).json({ error: "polygon has too many vertices (max 500)" });
+      return;
+    }
+
+    const invalid = validationError({ plan, costs, specCosts, lotPrice, salePrice });
+    if (invalid) {
+      res.status(400).json({ error: invalid });
       return;
     }
 
@@ -122,6 +196,24 @@ module.exports = async (req, res) => {
     let asking = null;
     if (lotAskingPrice && result) {
       asking = impliedMargin(plan, comps, costs, lotAskingPrice, ppsfOverride);
+    }
+
+    // Build-to-sell verdict. Falls back to the comp median value of the plan
+    // when the user has not typed a target sale price.
+    let deal = null;
+    if (lotPrice != null && plan.livingAreaSqft > 0) {
+      const compSale = comps.medianPricePerSqft ? comps.medianPricePerSqft * plan.livingAreaSqft : null;
+      const effectiveSale = salePrice || compSale;
+      if (effectiveSale) {
+        deal = evaluateDeal({
+          salePrice: effectiveSale,
+          sqft: plan.livingAreaSqft,
+          lotPrice,
+          costs: specCosts,
+          comps: comps.n > 0 ? comps : null,
+        });
+        deal.salePriceSource = salePrice ? "user" : "comps";
+      }
     }
 
     let split = null;
@@ -194,10 +286,10 @@ module.exports = async (req, res) => {
     if (!result) {
       error =
         dataSource === "hcad"
-          ? "No MLS listings in this polygon from the connected Repliers feed. Showing HCAD public records instead — enter an ARV $/sqft override to run the residual."
+          ? "No homes have sold nearby in the MLS feed, so there is no market evidence for the sale price — widen the search radius, or treat the sale price you typed as an assumption."
           : dataSource === "live-empty"
-            ? "No MLS listings in this polygon from the connected Repliers feed (and no HCAD coverage here)."
-            : "No comps matched the filters inside this polygon — widen the polygon or the size/bed filters.";
+            ? "No homes have sold nearby in the MLS feed — widen the search radius, or treat the sale price you typed as an assumption."
+            : "No sold homes close enough in size matched inside this area — widen the search radius to check your sale price against the market.";
     }
 
     const usedSet = new Set(comps.usedKeys || []);
@@ -227,6 +319,7 @@ module.exports = async (req, res) => {
       counts: { sold: soldInPoly.length, pending: pendingInPoly.length, active: activeInPoly.length },
       comps,
       result,
+      deal,
       sensitivity,
       asking,
       split,

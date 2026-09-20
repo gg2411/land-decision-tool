@@ -1,9 +1,10 @@
 {
   "name": "land-decision-tool",
+  "version": "1.0.0",
   "private": true,
-  "version": "0.1.0",
+  "description": "Houston spec-home decision tool: HAR MLS comps + build-to-sell pro forma",
   "scripts": {
-    "start": "node dev-server.js",
+    "start": "node server.js",
     "test": "node --test test/*.test.js"
   },
   "engines": {
