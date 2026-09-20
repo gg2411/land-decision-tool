@@ -10,27 +10,38 @@ test("extractPpsf pulls $/sqft figures", () => {
   // value-after-unit phrasing seen in real Tavily results
   assert.deepEqual(extractPpsf("median price per square foot of $513"), [513]);
   assert.deepEqual(extractPpsf("price per square foot was $556.75"), [556]);
+  assert.deepEqual(extractPpsf("sold homes per sq ft: $400"), [400]);
+  // a dollar figure not linked to the sqft phrase must not match
+  assert.deepEqual(extractPpsf("Price per square foot increased last year; HOA fee $500 monthly"), []);
 });
 
 test("summarizeWebResults dedupes by hostname and folds in the answer", () => {
   const s = summarizeWebResults(
     [
+      { title: "A0", url: "https://orchard.com/empty", content: "no figures here" },
       { title: "A1", url: "https://orchard.com/x", content: "$300/sq ft" },
       { title: "A2", url: "https://orchard.com/y", content: "$310/sqft" },
       { title: "B", url: "https://har.com/z", content: "$400 per square foot" },
     ],
-    "The median price per square foot of sold homes was $513."
+    "The median price per square foot was $513."
   );
-  assert.equal(s.sources.length, 3); // A2 deduped by hostname; +1 Tavily summary
+  assert.equal(s.sources.length, 3); // figure-less A0 doesn't block A1; A2 deduped; +1 Tavily summary
   assert.equal(s.sources[0].title, "A1");
   assert.equal(s.sources[2].title, "Tavily summary");
   assert.equal(s.sources[2].url, null);
   assert.deepEqual(s.sources[2].ppsf, [513]);
-  assert.equal(s.answer, "The median price per square foot of sold homes was $513.");
-  assert.deepEqual(
-    s.sources.map((x) => x.ppsf[0]).sort((a, b) => a - b),
-    [300, 400, 513]
-  );
+  assert.equal(s.answer, "The median price per square foot was $513.");
+  // answer values display as a source but are excluded from stats when results exist
+  assert.equal(s.n, 2);
+  assert.equal(s.medianPpsf, 350);
+});
+
+test("summarizeWebResults uses the answer for stats only when results are empty", () => {
+  const s = summarizeWebResults([], "median sold $/sqft: $400");
+  assert.equal(s.n, 1);
+  assert.equal(s.medianPpsf, 400);
+  assert.equal(s.sources.length, 1);
+  assert.equal(s.sources[0].title, "Tavily summary");
 });
 
 test("extractPpsf filters out-of-range values and dedupes", () => {
