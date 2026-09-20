@@ -15,6 +15,8 @@ test("extractPpsf pulls $/sqft figures", () => {
   assert.deepEqual(extractPpsf("price per square foot for homes sold in 77005, Houston, TX, is $513"), [513]);
   assert.deepEqual(extractPpsf("price per square foot in Houston is $250"), [250]);
   assert.deepEqual(extractPpsf("Price per square foot rose. The HOA fee is $500 monthly"), []);
+  assert.deepEqual(extractPpsf("median price per square foot $513"), [513]);
+  assert.deepEqual(extractPpsf("Price per square foot rose, but the monthly HOA fee is $500"), []);
   // a dollar figure not linked to the sqft phrase must not match
   assert.deepEqual(extractPpsf("Price per square foot increased last year; HOA fee $500 monthly"), []);
 });
