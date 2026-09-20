@@ -43,3 +43,17 @@ test("503 without Tavily API key", async () => {
   assert.equal(res.statusCode, 503);
   assert.match(res.body.error, /TAVILY_API_KEY is not configured/);
 });
+
+test("503 when LDT_SKIP_WEB is set", async () => {
+  process.env.TAVILY_API_KEY = "test-key";
+  process.env.LDT_SKIP_WEB = "1";
+  try {
+    const res = makeRes();
+    await handler({ method: "POST", body: { address: "1401 Rutland St" } }, res);
+    assert.equal(res.statusCode, 503);
+    assert.match(res.body.error, /LDT_SKIP_WEB/);
+  } finally {
+    delete process.env.TAVILY_API_KEY;
+    delete process.env.LDT_SKIP_WEB;
+  }
+});

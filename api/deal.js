@@ -18,6 +18,11 @@ module.exports = async (req, res) => {
     return;
   }
 
+  if (process.env.LDT_SKIP_WEB) {
+    res.status(503).json({ error: "Web lookups are disabled on this deployment (LDT_SKIP_WEB)." });
+    return;
+  }
+
   const apiKey = process.env.TAVILY_API_KEY;
   if (!apiKey) {
     res.status(503).json({

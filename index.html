@@ -409,7 +409,7 @@ function pointPopup(p) {
     p.soldDate ? `Sold: ${fmtDate(p.soldDate)}` : (p.listDate ? `Listed: ${fmtDate(p.listDate)}` : null),
   ].filter(Boolean);
   if (lastDataSource !== 'mock' && p.listingKey) {
-    lines.push(`<button class="mini" onclick="deepDive('${escapeHtml(String(p.listingKey))}')">Deep dive</button>`);
+    lines.push(`<button class="mini deep-dive" data-key="${escapeHtml(String(p.listingKey))}">Deep dive</button>`);
   } else if (lastDataSource === 'mock') {
     lines.push('<span class="hint">Deep dive needs live MLS data</span>');
   }
@@ -629,6 +629,11 @@ function render(data) {
     });
   });
 }
+
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('.deep-dive');
+  if (btn) deepDive(btn.dataset.key);
+});
 
 async function deepDive(key) {
   const reqId = ++dealRequestId;
