@@ -109,12 +109,22 @@
   }
   #legend-box span { display: inline-flex; align-items: center; margin-right: 12px; }
   #legend-box i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; margin-right: 5px; }
+  #resetBtn { background: none; border: none; color: var(--muted); font-size: 11px; padding: 2px 0; margin-top: 6px; text-decoration: underline; font-weight: 400; }
+  #resetBtn:hover { color: var(--text); }
+  details { margin-top: 14px; font-size: 11.5px; }
+  details summary { cursor: pointer; color: var(--muted); font-size: 12px; margin-bottom: 6px; }
+  #compsTable { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+  #compsTable th { color: var(--muted); text-align: left; font-weight: 500; padding: 3px 4px; border-bottom: 1px solid var(--border); }
+  #compsTable td { padding: 3px 4px; border-bottom: 1px solid var(--border); }
+  #compsTable tbody tr { cursor: pointer; }
+  #compsTable tbody tr:hover { background: var(--panel-2); }
 </style>
 </head>
 <body>
   <div id="map"></div>
   <div id="legend-box">
     <span><i style="background:#4f8cff"></i>Sold comp</span>
+    <span><i style="background:none;border:1px solid #4f8cff"></i>Sold (filtered out)</span>
     <span><i style="background:#e0a13e"></i>Pending</span>
     <span><i style="background:#38c172"></i>Active</span>
   </div>
@@ -125,6 +135,7 @@
     <div id="sourceBadge" class="badge">checking data source…</div>
 
     <button id="drawBtn">✎ Draw new polygon on map</button>
+    <div class="hint" id="drawHint" style="display:none">Click map to add points · right-click removes last point · Esc cancels</div>
 
     <fieldset>
       <legend>Floor plan</legend>
@@ -146,7 +157,20 @@
     </fieldset>
 
     <fieldset>
-      <legend>Split-lot scenario (optional)</legend>
+      <legend>Comp filters</legend>
+      <div class="row">
+        <div><label>Sqft tolerance (±%)<input id="sqftTol" type="number" value="20" /></label></div>
+        <div><label>Min beds<input id="minBeds" type="number" value="3" /></label></div>
+      </div>
+      <div class="row">
+        <div><label>Sold within (months)<input id="soldMonths" type="number" value="12" /></label></div>
+        <div><label>Min year built<input id="minYear" type="number" placeholder="any" /></label></div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Deal check (optional)</legend>
+      <label>Lot asking price ($)<input id="askPrice" type="number" placeholder="e.g. 250000" /></label>
       <div class="row">
         <div><label>Total lot price ($)<input id="splitPrice" type="number" placeholder="e.g. 650000" /></label></div>
         <div><label>Total lot sqft<input id="splitSqft" type="number" placeholder="e.g. 14000" /></label></div>
@@ -155,6 +179,7 @@
     </fieldset>
 
     <button id="analyzeBtn">Analyze</button>
+    <button id="resetBtn" type="button">Reset saved inputs</button>
     <div class="hint" id="polyHint">Using a default sample polygon. Click "Draw new polygon" to pick your own area.</div>
 
     <div id="results"></div>
@@ -181,47 +206,102 @@ let compsLayer = L.layerGroup().addTo(map);
 let drawing = false;
 let drawPoints = [];
 let drawLayer = null;
+let prevPolygon = null;
+let markersByKey = {};
+
+const INPUT_IDS = ['sqft', 'beds', 'baths', 'constCost', 'sellPct', 'marginPct', 'siteDev',
+  'sqftTol', 'minBeds', 'soldMonths', 'minYear', 'askPrice', 'splitPrice', 'splitSqft', 'splitN'];
+
+function redrawDrawLayer() {
+  if (drawLayer) map.removeLayer(drawLayer);
+  drawLayer = L.polyline(drawPoints, { color: '#e0a13e', weight: 2, dashArray: '4,4' }).addTo(map);
+  drawPoints.forEach(p => L.circleMarker(p, { radius: 4, color: '#e0a13e' }).addTo(drawLayer));
+}
+
+function endDraw(cancel) {
+  drawing = false;
+  const btn = document.getElementById('drawBtn');
+  btn.classList.remove('active');
+  btn.textContent = '✎ Draw new polygon on map';
+  document.getElementById('drawHint').style.display = 'none';
+  if (drawLayer) map.removeLayer(drawLayer);
+  if (!cancel && drawPoints.length >= 3) {
+    polygon = drawPoints.map(p => [p.lat, p.lng]);
+    polyLayer = L.polygon(polygon, { color: '#4f8cff', weight: 2, fillOpacity: 0.08 }).addTo(map);
+    document.getElementById('polyHint').textContent = `Custom polygon set (${polygon.length} points).`;
+  } else {
+    // cancelled or not enough points — restore previous polygon
+    polygon = prevPolygon || polygon;
+    polyLayer = L.polygon(polygon, { color: '#4f8cff', weight: 2, fillOpacity: 0.08 }).addTo(map);
+  }
+}
 
 document.getElementById('drawBtn').addEventListener('click', () => {
-  drawing = !drawing;
+  if (drawing) { endDraw(false); return; }
+  drawing = true;
+  prevPolygon = polygon;
   const btn = document.getElementById('drawBtn');
-  if (drawing) {
-    btn.classList.add('active');
-    btn.textContent = '✓ Click map to add points, click here when done';
-    drawPoints = [];
-    if (drawLayer) map.removeLayer(drawLayer);
-    if (polyLayer) map.removeLayer(polyLayer);
-  } else {
-    btn.classList.remove('active');
-    btn.textContent = '✎ Draw new polygon on map';
-    if (drawPoints.length >= 3) {
-      polygon = drawPoints.map(p => [p.lat, p.lng]);
-      if (drawLayer) map.removeLayer(drawLayer);
-      polyLayer = L.polygon(polygon, { color: '#4f8cff', weight: 2, fillOpacity: 0.08 }).addTo(map);
-      document.getElementById('polyHint').textContent = `Custom polygon set (${polygon.length} points).`;
-    } else {
-      // not enough points, restore old polygon
-      polyLayer = L.polygon(polygon, { color: '#4f8cff', weight: 2, fillOpacity: 0.08 }).addTo(map);
-    }
-  }
+  btn.classList.add('active');
+  btn.textContent = '✓ Click map to add points, click here when done';
+  document.getElementById('drawHint').style.display = 'block';
+  drawPoints = [];
+  if (drawLayer) map.removeLayer(drawLayer);
+  if (polyLayer) map.removeLayer(polyLayer);
 });
 
 map.on('click', (e) => {
   if (!drawing) return;
   drawPoints.push(e.latlng);
-  if (drawLayer) map.removeLayer(drawLayer);
-  drawLayer = L.polyline(drawPoints, { color: '#e0a13e', weight: 2, dashArray: '4,4' }).addTo(map);
-  drawPoints.forEach(p => L.circleMarker(p, { radius: 4, color: '#e0a13e' }).addTo(drawLayer));
+  redrawDrawLayer();
 });
 
-async function checkSource() {
-  // Lightweight ping: analyze with the current polygon just to read dataSource back.
-  // (Kept silent — no results rendered from this call.)
-}
+map.on('contextmenu', (e) => {
+  if (!drawing) return;
+  e.originalEvent.preventDefault();
+  drawPoints.pop();
+  redrawDrawLayer();
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && drawing) endDraw(true);
+});
 
 function fmtMoney(n) {
   if (n == null || isNaN(n)) return '—';
   return '$' + Math.round(n).toLocaleString();
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function fmtDate(s) {
+  return s ? String(s).slice(0, 10) : '—';
+}
+
+function saveState() {
+  const inputs = {};
+  INPUT_IDS.forEach(id => { inputs[id] = document.getElementById(id).value; });
+  localStorage.setItem('ldt-state-v1', JSON.stringify({ polygon, inputs }));
+}
+
+function restoreState() {
+  try {
+    const st = JSON.parse(localStorage.getItem('ldt-state-v1'));
+    if (!st) return;
+    if (st.inputs) {
+      INPUT_IDS.forEach(id => {
+        if (st.inputs[id] !== undefined) document.getElementById(id).value = st.inputs[id];
+      });
+    }
+    if (Array.isArray(st.polygon) && st.polygon.length >= 3) {
+      polygon = st.polygon;
+      if (polyLayer) map.removeLayer(polyLayer);
+      polyLayer = L.polygon(polygon, { color: '#4f8cff', weight: 2, fillOpacity: 0.08 }).addTo(map);
+      map.fitBounds(polyLayer.getBounds());
+      document.getElementById('polyHint').textContent = `Restored saved polygon (${polygon.length} points).`;
+    }
+  } catch (e) { /* corrupt state — ignore */ }
 }
 
 async function analyze() {
@@ -229,10 +309,12 @@ async function analyze() {
   btn.disabled = true;
   btn.textContent = 'Analyzing…';
 
+  const sqft = Number(document.getElementById('sqft').value);
+  const tol = Number(document.getElementById('sqftTol').value || 0) / 100;
   const body = {
     polygon,
     plan: {
-      livingAreaSqft: Number(document.getElementById('sqft').value),
+      livingAreaSqft: sqft,
       beds: Number(document.getElementById('beds').value),
       baths: Number(document.getElementById('baths').value),
     },
@@ -242,7 +324,17 @@ async function analyze() {
       targetMarginPct: Number(document.getElementById('marginPct').value) / 100,
       siteDevCost: Number(document.getElementById('siteDev').value),
     },
+    compsFilter: {
+      minSqft: sqft * (1 - tol),
+      maxSqft: sqft * (1 + tol),
+      minBeds: Number(document.getElementById('minBeds').value),
+      soldWithinMonths: Number(document.getElementById('soldMonths').value || 0),
+    },
   };
+  const minYear = document.getElementById('minYear').value;
+  if (minYear) body.compsFilter.minYearBuilt = Number(minYear);
+  const askPrice = Number(document.getElementById('askPrice').value);
+  if (askPrice > 0) body.lotAskingPrice = askPrice;
 
   const splitPrice = document.getElementById('splitPrice').value;
   const splitSqft = document.getElementById('splitSqft').value;
@@ -262,12 +354,31 @@ async function analyze() {
     });
     const data = await resp.json();
     render(data);
+    saveState();
   } catch (err) {
-    document.getElementById('results').innerHTML = `<div class="err">Request failed: ${err}</div>`;
+    document.getElementById('results').innerHTML = `<div class="err">Request failed: ${escapeHtml(err)}</div>`;
   } finally {
     btn.disabled = false;
     btn.textContent = 'Analyze';
   }
+}
+
+function pointPopup(p) {
+  const lines = [
+    p.address ? `<b>${escapeHtml(p.address)}</b>` : null,
+    `${fmtMoney(p.price)} · ${p.sqft} sqft · $${p.ppsf}/sqft`,
+    `${p.beds ?? '—'} bd / ${p.baths ?? '—'} ba · built ${p.yearBuilt ?? '—'}`,
+    `Status: ${p.status}`,
+    p.soldDate ? `Sold: ${fmtDate(p.soldDate)}` : (p.listDate ? `Listed: ${fmtDate(p.listDate)}` : null),
+  ].filter(Boolean);
+  return lines.join('<br>');
+}
+
+function pointStyle(p) {
+  if (p.status === 'pending') return { radius: 4, color: '#e0a13e', fillColor: '#e0a13e', fillOpacity: 0.7, weight: 1 };
+  if (p.status === 'active') return { radius: 4, color: '#38c172', fillColor: '#38c172', fillOpacity: 0.7, weight: 1 };
+  if (p.used) return { radius: 5, color: '#4f8cff', fillColor: '#4f8cff', fillOpacity: 0.7, weight: 1 };
+  return { radius: 4, color: '#4f8cff', fillColor: '#4f8cff', fillOpacity: 0.1, weight: 1, dashArray: '3,3' };
 }
 
 function render(data) {
@@ -276,28 +387,31 @@ function render(data) {
     badge.textContent = '● Live HAR data';
     badge.className = 'badge live';
   } else {
-    badge.textContent = '● Mock data (no HAR_API_KEY set)';
+    badge.textContent = '● Mock data (no REPLIERS_API_KEY set)';
     badge.className = 'badge mock';
   }
 
   compsLayer.clearLayers();
+  markersByKey = {};
   (data.compsPoints || []).forEach(p => {
     if (p.lat == null || p.lon == null) return;
-    L.circleMarker([p.lat, p.lon], {
-      radius: 5, color: '#4f8cff', fillColor: '#4f8cff', fillOpacity: 0.7, weight: 1,
-    }).bindPopup(`${fmtMoney(p.price)} · ${p.sqft} sqft · $${p.ppsf}/sqft`).addTo(compsLayer);
+    const m = L.circleMarker([p.lat, p.lon], pointStyle(p)).bindPopup(pointPopup(p)).addTo(compsLayer);
+    if (p.listingKey) markersByKey[p.listingKey] = m;
   });
 
   const el = document.getElementById('results');
+  let html = '';
+  if (data.counts) {
+    html += `<div class="kv"><span class="k">Sold / Pending / Active in polygon</span><span>${data.counts.sold} / ${data.counts.pending} / ${data.counts.active}</span></div>`;
+  }
   if (data.error) {
-    el.innerHTML = `<div class="err">${data.error}</div>`;
+    el.innerHTML = html + `<div class="err">${escapeHtml(data.error)}</div>`;
     return;
   }
 
   const r = data.result;
   const s = data.sensitivity;
-  let html = `
-    <div class="kv"><span class="k">Sold / Pending / Active in polygon</span><span>${data.counts.sold} / ${data.counts.pending} / ${data.counts.active}</span></div>
+  html += `
     <div class="kv"><span class="k">Comps used (filtered)</span><span>${data.comps.n}</span></div>
     <div class="kv"><span class="k">Median $/sqft</span><span>$${Math.round(data.comps.medianPricePerSqft || 0)}</span></div>
 
@@ -305,7 +419,22 @@ function render(data) {
       <div class="num">${fmtMoney(r.maxLandPrice)}</div>
       <div class="lbl">MAX LAND PRICE (base case)</div>
     </div>
+  `;
 
+  if (data.asking) {
+    const a = data.asking;
+    const ok = a.meetsTarget;
+    html += `
+      <div class="headline" style="border-color:${ok ? '#38c172' : '#e0554e'}">
+        <div class="num" style="color:${ok ? '#38c172' : '#e0554e'};font-size:17px">
+          At asking ${fmtMoney(a.landPrice)}: profit ${fmtMoney(a.profit)}, margin ${(a.marginPct * 100).toFixed(1)}%
+        </div>
+        <div class="lbl">${ok ? 'Meets' : 'Falls short of'} ${(Number(document.getElementById('marginPct').value)).toFixed(0)}% target</div>
+      </div>
+    `;
+  }
+
+  html += `
     <div class="kv"><span class="k">Estimated ARV</span><span>${fmtMoney(r.arv)}</span></div>
     <div class="kv"><span class="k">Construction cost</span><span>${fmtMoney(r.constructionCost)}</span></div>
     <div class="kv"><span class="k">Selling costs</span><span>${fmtMoney(r.sellingCost)}</span></div>
@@ -324,18 +453,49 @@ function render(data) {
       <fieldset style="margin-top:14px;">
         <legend>Split-lot result</legend>
         <div class="kv"><span class="k">Price per lot (÷${sp.nSplits})</span><span>${fmtMoney(sp.perLotPrice)}</span></div>
+        <div class="kv"><span class="k">Price per lot $/sqft</span><span>${sp.perLotPricePerSqft != null ? '$' + sp.perLotPricePerSqft.toLocaleString() : '—'}</span></div>
         <div class="kv"><span class="k">Max land price per lot</span><span>${fmtMoney(sp.maxLandPricePerLot)}</span></div>
+        <div class="kv"><span class="k">Implied margin per lot</span><span>${sp.impliedMarginPerLot != null ? (sp.impliedMarginPerLot * 100).toFixed(1) + '%' : '—'}</span></div>
         <div class="kv"><span class="k">Profitable?</span><span style="color:${sp.profitable ? '#38c172' : '#e0554e'}">${sp.profitable ? 'Yes' : 'No'} (${fmtMoney(sp.marginVsMax)})</span></div>
       </fieldset>
     `;
   }
 
+  const usedComps = (data.compsPoints || [])
+    .filter(p => p.status === 'sold' && p.used)
+    .sort((a, b) => (b.ppsf || 0) - (a.ppsf || 0));
+  if (usedComps.length) {
+    html += `
+      <details open>
+        <summary>Comps used (${usedComps.length})</summary>
+        <table id="compsTable">
+          <thead><tr><th>Address</th><th>Price</th><th>Sqft</th><th>$/sqft</th><th>Yr</th><th>Sold</th></tr></thead>
+          <tbody>
+            ${usedComps.map(p => `<tr data-key="${escapeHtml(p.listingKey || '')}"><td>${escapeHtml(p.address || '—')}</td><td>${fmtMoney(p.price)}</td><td>${p.sqft ?? '—'}</td><td>${p.ppsf != null ? '$' + p.ppsf : '—'}</td><td>${p.yearBuilt ?? '—'}</td><td>${fmtDate(p.soldDate)}</td></tr>`).join('')}
+          </tbody>
+        </table>
+      </details>
+    `;
+  }
+
   el.innerHTML = html;
+
+  el.querySelectorAll('#compsTable tbody tr').forEach(tr => {
+    tr.addEventListener('click', () => {
+      const m = markersByKey[tr.dataset.key];
+      if (m) { map.panTo(m.getLatLng()); m.openPopup(); }
+    });
+  });
 }
 
 document.getElementById('analyzeBtn').addEventListener('click', analyze);
+document.getElementById('resetBtn').addEventListener('click', () => {
+  localStorage.removeItem('ldt-state-v1');
+  location.reload();
+});
 
-// Run once on load with the default polygon so there's something to look at.
+restoreState();
+// Run once on load with the current polygon so there's something to look at.
 analyze();
 </script>
 </body>
