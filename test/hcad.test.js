@@ -113,6 +113,12 @@ test("summarizeLandValues soldWithinMonths null = no window", () => {
   const s = summarizeLandValues(parcels, { soldWithinMonths: null, now });
   assert.equal(s.basis, "all-parcels");
   assert.equal(s.n, 6);
+  // no-limit still only counts parcels that have a transfer date
+  assert.equal(s.nRecentTransfers, 6);
+  parcels.push(parcel({ acct: "P6", landValuePerSqft: 90, transferDate: null }));
+  const s2 = summarizeLandValues(parcels, { soldWithinMonths: null, now });
+  assert.equal(s2.n, 7);
+  assert.equal(s2.nRecentTransfers, 6);
 });
 
 test("summarizeLandValues n=0 when nothing eligible", () => {

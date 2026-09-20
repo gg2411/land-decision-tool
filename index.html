@@ -440,6 +440,9 @@ function render(data) {
   if (data.error) {
     html += `<div class="err">${escapeHtml(data.error)}</div>`;
   }
+  if (data.webConfigured === false && data.comps && !data.comps.n) {
+    html += `<div class="hint">Set TAVILY_API_KEY to pull a web-sourced sold $/sqft signal.</div>`;
+  }
 
   if (data.result) {
     const r = data.result;
@@ -502,12 +505,13 @@ function render(data) {
         <legend>HCAD land benchmark (public records)</legend>`;
     if (h.error) {
       html += `<div class="err">HCAD lookup failed: ${escapeHtml(h.error)}</div>`;
-    } else if (!h.n) {
-      html += `<div class="kv"><span class="k">No eligible parcels</span></div>`;
     } else {
       if (h.truncated) {
         html += `<div class="hint">Parcel set truncated (dense polygon) — draw a smaller area for an exact benchmark.</div>`;
       }
+      if (!h.n) {
+        html += `<div class="kv"><span class="k">No eligible parcels</span></div>`;
+      } else {
       html += `
         <div class="kv"><span class="k">Median land value</span><span>$${h.medianLandValuePerSqft}/sqft</span></div>
         <div class="kv"><span class="k">Range (25th–75th pct)</span><span>$${h.landPpsfLow}–$${h.landPpsfHigh}/sqft</span></div>
@@ -521,6 +525,29 @@ function render(data) {
         <div class="kv"><span class="k">Asking vs HCAD</span><span style="color:${ok ? '#38c172' : '#e0554e'}">$${h.asking.askingPerSqft}/sqft vs $${h.medianLandValuePerSqft}/sqft (${prem >= 0 ? '+' : '−'}${Math.abs(prem * 100).toFixed(1)}%)</span></div>
         <div class="kv"><span class="k">HCAD-implied lot value</span><span>${fmtMoney(h.asking.hcadLandValue)}</span></div>`;
       }
+      }
+    }
+    html += `</fieldset>`;
+  }
+
+  if (data.web) {
+    const w = data.web;
+    html += `
+      <fieldset style="margin-top:14px;">
+        <legend>Web-sourced sold $/sqft (Tavily)</legend>`;
+    if (w.error) {
+      html += `<div class="err">Web lookup failed: ${escapeHtml(w.error)}</div>`;
+    } else if (w.n > 0) {
+      html += `
+        <div class="kv"><span class="k">Median $/sqft</span><span>$${Math.round(w.medianPpsf)}</span></div>
+        <div class="kv"><span class="k">Range</span><span>$${Math.round(w.ppsfLow)}–$${Math.round(w.ppsfHigh)}</span></div>
+        <div class="kv"><span class="k">Signals</span><span>${w.n}</span></div>`;
+      (w.sources || []).forEach(s => {
+        html += `<div class="hint" style="margin-top:4px"><a target="_blank" rel="noopener" href="${escapeHtml(String(s.url || '#'))}">${escapeHtml(String(s.title || s.url))}</a> — ${s.ppsf.map(v => '$' + escapeHtml(String(v))).join(', ')}/sqft</div>`;
+      });
+      html += `<button id="useWebPpsf" style="width:100%;margin-top:8px;background:var(--panel-2);color:var(--text);border:1px solid var(--border)">Use $${Math.round(w.medianPpsf)} as ARV override</button>`;
+    } else {
+      html += `<div class="hint">No $/sqft figures found in web results.</div>`;
     }
     html += `</fieldset>`;
   }
@@ -543,6 +570,15 @@ function render(data) {
   }
 
   el.innerHTML = html;
+
+  const webBtn = el.querySelector('#useWebPpsf');
+  if (webBtn) {
+    webBtn.addEventListener('click', () => {
+      document.getElementById('arvPpsf').value = Math.round(data.web.medianPpsf);
+      saveState();
+      analyze();
+    });
+  }
 
   el.querySelectorAll('#compsTable tbody tr').forEach(tr => {
     tr.addEventListener('click', () => {
