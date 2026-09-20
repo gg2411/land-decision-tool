@@ -1,4 +1,7 @@
 const { extractPlan, planProvider } = require("../lib/planParse");
+const { createRateLimit, clientKey } = require("../lib/rateLimit");
+
+const limit = createRateLimit({ limit: 10, windowMs: 60_000 });
 
 module.exports = async (req, res) => {
   if (req.method === "GET") {
@@ -7,6 +10,12 @@ module.exports = async (req, res) => {
   }
   if (req.method !== "POST") {
     res.status(405).json({ error: "Use POST" });
+    return;
+  }
+  const gate = limit(clientKey(req));
+  if (!gate.allowed) {
+    res.setHeader("Retry-After", String(gate.retryAfterSec));
+    res.status(429).json({ error: "Too many plan uploads at once — wait a minute and try again." });
     return;
   }
   try {
