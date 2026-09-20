@@ -168,6 +168,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
 const $ = (id) => document.getElementById(id);
+// Anything that came from the server or a vision model is untrusted text.
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
 const money = (n) => (n == null || isNaN(n) ? "—" : (n < 0 ? "-" : "") + "$" + Math.round(Math.abs(n)).toLocaleString());
 
 const map = L.map("map", { zoomControl: true }).setView([29.795, -95.355], 13);
@@ -298,7 +300,9 @@ function dropNulls(obj) {
 function requestBody() {
   return {
     polygon,
-    plan: dropNulls({ livingAreaSqft: num("sqft"), beds: num("beds"), baths: num("baths") }),
+    // Size is required, so it is always sent — a blank one must fail validation
+    // rather than silently pick up the server default.
+    plan: { livingAreaSqft: num("sqft"), ...dropNulls({ beds: num("beds"), baths: num("baths") }) },
     costs: dropNulls({
       constructionCostPerSqft: num("constCost"),
       sellingCostPct: num("sellPct", 100),
@@ -352,7 +356,7 @@ function render(data) {
   (data.compsPoints || []).forEach((p) => {
     if (p.lat == null || p.lon == null) return;
     L.circleMarker([p.lat, p.lon], { radius: 5, color: "#1f5c9e", fillColor: "#1f5c9e", fillOpacity: 0.7, weight: 1 })
-      .bindPopup(`${money(p.price)} · ${p.sqft} sq ft · $${p.ppsf}/sq ft`)
+      .bindPopup(`${money(p.price)} · ${esc(p.sqft)} sq ft · $${esc(p.ppsf)}/sq ft`)
       .addTo(compsLayer);
   });
 
@@ -363,7 +367,7 @@ function render(data) {
     const msg = missingLot
       ? "Enter what the lot costs, then check the deal again."
       : data.error || "Enter a lot price and plan size to check the deal.";
-    el.innerHTML = `<div class="note bad">${msg}</div>`;
+    el.innerHTML = `<div class="note bad">${esc(msg)}</div>`;
     return;
   }
 
@@ -419,7 +423,7 @@ function render(data) {
       </table>`;
   }
 
-  (d.warnings || []).forEach((w) => { html += `<div class="note warn">${w}</div>`; });
+  (d.warnings || []).forEach((w) => { html += `<div class="note warn">${esc(w)}</div>`; });
 
   if (data.result) {
     html += `<details><summary>Land-residual view (max land price from comps)</summary>

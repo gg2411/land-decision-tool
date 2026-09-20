@@ -43,6 +43,12 @@ test("a non-positive house size or sale price is rejected", async () => {
   assert.match(badSale.payload.error, /sale price/);
 });
 
+test("a cleared size field is rejected instead of falling back to the default", async () => {
+  const r = await call({ ...valid, plan: { livingAreaSqft: null } });
+  assert.equal(r.status, 400);
+  assert.match(r.payload.error, /square feet/);
+});
+
 test("out-of-range percentages are rejected", async () => {
   const r = await call({ ...valid, specCosts: { loanRatePct: 8.5 } }); // sent as 850%, not 0.085
   assert.equal(r.status, 400);

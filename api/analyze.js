@@ -58,7 +58,9 @@ module.exports = async (req, res) => {
     const body = req.body || {};
     const polygon = body.polygon; // array of [lat, lon]
     const plan = {
-      livingAreaSqft: Number(body.plan?.livingAreaSqft ?? 2400),
+      // Only an absent key falls back to the default; an explicit null or blank
+      // means the caller cleared a required field and must be told so.
+      livingAreaSqft: "livingAreaSqft" in (body.plan || {}) ? Number(body.plan.livingAreaSqft) : 2400,
       beds: Number(body.plan?.beds ?? 4),
       baths: Number(body.plan?.baths ?? 3),
     };

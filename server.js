@@ -7,6 +7,10 @@ const path = require("path");
 
 const PORT = Number(process.env.PORT || 3000);
 const MAX_BODY = 20 * 1024 * 1024; // floor-plan uploads arrive as base64 JSON
+const PUBLIC_FILES = new Map([
+  ["index.html", "text/html"],
+  ["favicon.ico", "image/x-icon"],
+]);
 
 function readBody(req) {
   return new Promise((resolve, reject) => {
@@ -65,15 +69,16 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // The app is one page; serving the rest of the checkout (source, .git) would
+  // hand the whole repository to anyone who can reach this port.
   const file = url.pathname === "/" ? "index.html" : url.pathname.slice(1);
-  const full = path.join(__dirname, path.normalize(file).replace(/^(\.\.[/\\])+/, ""));
-  if (!full.startsWith(__dirname) || !fs.existsSync(full) || fs.statSync(full).isDirectory()) {
+  const full = path.join(__dirname, file);
+  if (!PUBLIC_FILES.has(file) || !fs.existsSync(full)) {
     res.statusCode = 404;
     res.end("Not found");
     return;
   }
-  const types = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".json": "application/json" };
-  res.setHeader("Content-Type", types[path.extname(full)] || "application/octet-stream");
+  res.setHeader("Content-Type", PUBLIC_FILES.get(file));
   res.end(fs.readFileSync(full));
 });
 
