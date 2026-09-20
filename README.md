@@ -22,6 +22,8 @@ The connected Repliers feed has little to no Houston coverage. When a live query
 - `REPLIERS_API_KEY` (or `HAR_API_KEY`) — Repliers API key. Without it the app falls back to generated mock data.
 - `REPLIERS_BOARD_ID` — optional Repliers board ID.
 - `LDT_SKIP_HCAD` — set to disable the HCAD parcel lookup (used by the offline test suite).
+- `TAVILY_API_KEY` — optional. When set and no MLS comps are found, the app queries Tavily for a web-sourced sold $/sqft signal you can apply as the ARV override.
+- `LDT_SKIP_WEB` — set to disable the Tavily lookup.
 
 ## Deploy
 

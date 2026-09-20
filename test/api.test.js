@@ -6,6 +6,8 @@ const handler = require("../api/analyze");
 delete process.env.REPLIERS_API_KEY;
 delete process.env.HAR_API_KEY;
 process.env.LDT_SKIP_HCAD = "1"; // keep tests offline
+process.env.LDT_SKIP_WEB = "1";
+delete process.env.TAVILY_API_KEY;
 
 const SQUARE = [
   [29.75, -95.4],

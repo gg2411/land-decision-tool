@@ -9,6 +9,7 @@ const {
   fetchAllStatuses,
 } = require("../lib/core");
 const { fetchHcadParcels, summarizeLandValues } = require("../lib/hcad");
+const { fetchWebPpsf } = require("../lib/tavily");
 
 const round2 = (n) => Math.round(n * 100) / 100;
 const round4 = (n) => Math.round(n * 10000) / 10000;
@@ -134,9 +135,11 @@ module.exports = async (req, res) => {
 
     let hcad = null;
     let hcadPoints = [];
+    let hcadParcels = [];
     if (!process.env.LDT_SKIP_HCAD && withinHarris(polygon)) {
       try {
         const { parcels, truncated } = await fetchHcadParcels(polygon);
+        hcadParcels = parcels;
         const summary = summarizeLandValues(parcels, { soldWithinMonths });
         hcad = { ...summary, truncated };
         if (lotAskingPrice && lotSqft && summary.medianLandValuePerSqft) {
@@ -163,6 +166,20 @@ module.exports = async (req, res) => {
         }));
       } catch (err) {
         hcad = { error: String(err.message || err) };
+      }
+    }
+
+    // Web-sourced ARV signal — only useful when there are no MLS comps.
+    let web = null;
+    const tavilyKey = process.env.TAVILY_API_KEY;
+    if (tavilyKey && !process.env.LDT_SKIP_WEB && !comps.n) {
+      const zipCounts = {};
+      for (const p of hcadParcels) if (p.zip) zipCounts[p.zip] = (zipCounts[p.zip] || 0) + 1;
+      const zips = Object.keys(zipCounts).sort((a, b) => zipCounts[b] - zipCounts[a]);
+      try {
+        web = await fetchWebPpsf({ zips, apiKey: tavilyKey });
+      } catch (err) {
+        web = { error: String(err.message || err) };
       }
     }
 
@@ -205,6 +222,8 @@ module.exports = async (req, res) => {
       split,
       hcad,
       hcadPoints,
+      web,
+      webConfigured: Boolean(tavilyKey),
       arvSource: ppsfOverride ? "override" : "comps",
       error,
       compsPoints: [
