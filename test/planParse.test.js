@@ -12,6 +12,14 @@ test("decodeUpload reads a data URL and rejects other file types", () => {
   assert.throws(() => decodeUpload(""), /No file/);
 });
 
+test("decodeUpload trusts the file's bytes, not its declared type", () => {
+  // A script labelled as a PNG must not reach the model.
+  assert.throws(() => decodeUpload("data:image/png;base64,PHNjcmlwdD4="), /not a readable/);
+  // A PDF labelled as a PNG is read as the PDF it actually is.
+  assert.equal(decodeUpload("data:image/png;base64,JVBERi0=").mimeType, "application/pdf");
+  assert.equal(decodeUpload("data:image/png;base64,JVBERi0=").isPdf, true);
+});
+
 test("parseModelJson survives markdown fences and surrounding prose", () => {
   assert.deepEqual(parseModelJson('```json\n{"beds": 4}\n```'), { beds: 4 });
   assert.deepEqual(parseModelJson('Here you go: {"beds": 3} — hope that helps'), { beds: 3 });

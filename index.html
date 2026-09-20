@@ -94,7 +94,7 @@
 
 <div id="layout">
   <div id="map"></div>
-  <div id="legend"><span><i style="background:#1f5c9e"></i>Sold nearby</span><span><i style="background:#137a45"></i>For sale</span></div>
+  <div id="legend"><span><i style="background:#1f5c9e"></i>Sold nearby</span><span><i style="background:#9a6708"></i>Under contract</span><span><i style="background:#137a45"></i>For sale</span></div>
 
   <div id="panel">
 
@@ -320,6 +320,9 @@ function requestBody() {
       loanToCostPct: num("ltc", 100),
       propertyTaxPct: num("taxPct", 100),
     }),
+    // Without this the server's default 3-bed floor would drop every comp for a
+    // smaller plan.
+    compsFilter: dropNulls({ minBeds: num("beds") }),
     lotPrice: num("lotPrice"),
     salePrice: num("salePrice"),
   };
@@ -344,6 +347,9 @@ async function analyze() {
   }
 }
 
+const STATUS_COLOR = { sold: "#1f5c9e", pending: "#9a6708", active: "#137a45" };
+const STATUS_LABEL = { sold: "Sold", pending: "Under contract", active: "For sale" };
+
 function row(label, value, cls) {
   return `<tr class="${cls || ""}"><td>${label}</td><td class="r">${value}</td></tr>`;
 }
@@ -363,8 +369,9 @@ function render(data) {
   compsLayer.clearLayers();
   (data.compsPoints || []).forEach((p) => {
     if (p.lat == null || p.lon == null) return;
-    L.circleMarker([p.lat, p.lon], { radius: 5, color: "#1f5c9e", fillColor: "#1f5c9e", fillOpacity: 0.7, weight: 1 })
-      .bindPopup(`${money(p.price)} · ${esc(p.sqft)} sq ft · $${esc(p.ppsf)}/sq ft`)
+    const c = STATUS_COLOR[p.status] || STATUS_COLOR.sold;
+    L.circleMarker([p.lat, p.lon], { radius: 5, color: c, fillColor: c, fillOpacity: 0.7, weight: 1 })
+      .bindPopup(`${STATUS_LABEL[p.status] || "Sold"} · ${money(p.price)} · ${esc(p.sqft)} sq ft · $${esc(p.ppsf)}/sq ft`)
       .addTo(compsLayer);
   });
 
