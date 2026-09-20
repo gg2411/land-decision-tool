@@ -201,7 +201,11 @@ document.getElementById('drawBtn').addEventListener('click', () => {
       document.getElementById('polyHint').textContent = `Custom polygon set (${polygon.length} points).`;
     } else {
       // not enough points, restore old polygon
+      if (drawLayer) map.removeLayer(drawLayer);
+      drawLayer = null;
       polyLayer = L.polygon(polygon, { color: '#4f8cff', weight: 2, fillOpacity: 0.08 }).addTo(map);
+      document.getElementById('polyHint').textContent =
+        `Need at least 3 points (got ${drawPoints.length}) — kept the previous polygon.`;
     }
   }
 });
@@ -210,7 +214,8 @@ map.on('click', (e) => {
   if (!drawing) return;
   drawPoints.push(e.latlng);
   if (drawLayer) map.removeLayer(drawLayer);
-  drawLayer = L.polyline(drawPoints, { color: '#e0a13e', weight: 2, dashArray: '4,4' }).addTo(map);
+  drawLayer = L.layerGroup().addTo(map);
+  L.polyline(drawPoints, { color: '#e0a13e', weight: 2, dashArray: '4,4' }).addTo(drawLayer);
   drawPoints.forEach(p => L.circleMarker(p, { radius: 4, color: '#e0a13e' }).addTo(drawLayer));
 });
 
