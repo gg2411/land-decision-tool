@@ -214,7 +214,8 @@ const INPUT_IDS = ['sqft', 'beds', 'baths', 'constCost', 'sellPct', 'marginPct',
 
 function redrawDrawLayer() {
   if (drawLayer) map.removeLayer(drawLayer);
-  drawLayer = L.polyline(drawPoints, { color: '#e0a13e', weight: 2, dashArray: '4,4' }).addTo(map);
+  drawLayer = L.layerGroup().addTo(map);
+  L.polyline(drawPoints, { color: '#e0a13e', weight: 2, dashArray: '4,4' }).addTo(drawLayer);
   drawPoints.forEach(p => L.circleMarker(p, { radius: 4, color: '#e0a13e' }).addTo(drawLayer));
 }
 
