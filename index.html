@@ -239,16 +239,21 @@ $("drawBtn").addEventListener("click", () => {
 });
 
 // ---------- floor plan upload ----------
+// Reads and model calls can finish out of order, so only the newest selection
+// is allowed to write to the form.
+let uploadSeq = 0;
 $("drop").addEventListener("click", () => $("planFile").click());
 $("planFile").addEventListener("change", async (e) => {
   const f = e.target.files[0];
   if (!f) return;
+  const seq = ++uploadSeq;
   const dataUrl = await new Promise((res, rej) => {
     const r = new FileReader();
     r.onload = (ev) => res(ev.target.result);
     r.onerror = rej;
     r.readAsDataURL(f);
   });
+  if (seq !== uploadSeq) return;
   if (f.type.startsWith("image/")) {
     $("planImg").src = dataUrl;
     $("planPreview").style.display = "block";
@@ -263,6 +268,7 @@ $("planFile").addEventListener("change", async (e) => {
       body: JSON.stringify({ file: dataUrl, mimeType: f.type }),
     });
     const data = await resp.json();
+    if (seq !== uploadSeq) return;
     if (data.error) { $("planMsg").textContent = data.error + " Type the numbers below instead."; return; }
     const p = data.plan;
     if (p.livingAreaSqft) $("sqft").value = p.livingAreaSqft;
@@ -273,34 +279,44 @@ $("planFile").addEventListener("change", async (e) => {
       `${p.beds ? ", " + p.beds + " bed" : ""}${p.baths ? ", " + p.baths + " bath" : ""}. ` +
       `${p.notes || ""} Please check these before you rely on them.`;
   } catch (err) {
-    $("planMsg").textContent = "Could not read the plan automatically — type the numbers below.";
+    if (seq === uploadSeq) $("planMsg").textContent = "Could not read the plan automatically — type the numbers below.";
   }
 });
 
 // ---------- analyze ----------
+// A blank field is a missing answer, not a zero — send null and let the server
+// either fall back to its default or say what is missing.
+function num(id, divisor = 1) {
+  const v = $(id).value.trim();
+  return v === "" ? null : Number(v) / divisor;
+}
+
+function dropNulls(obj) {
+  return Object.fromEntries(Object.entries(obj).filter(([, v]) => v != null));
+}
+
 function requestBody() {
-  const salePrice = $("salePrice").value;
   return {
     polygon,
-    plan: { livingAreaSqft: Number($("sqft").value), beds: Number($("beds").value), baths: Number($("baths").value) },
-    costs: {
-      constructionCostPerSqft: Number($("constCost").value),
-      sellingCostPct: Number($("sellPct").value) / 100,
-      targetMarginPct: Number($("marginPct").value) / 100,
-      siteDevCost: Number($("cityFees").value),
-    },
-    specCosts: {
-      softCostPct: Number($("softPct").value) / 100,
-      contingencyPct: Number($("contPct").value) / 100,
-      cityFees: Number($("cityFees").value),
-      buildersRisk: Number($("buildersRisk").value),
-      months: Number($("months").value),
-      loanRatePct: Number($("loanRate").value) / 100,
-      loanToCostPct: Number($("ltc").value) / 100,
-      propertyTaxPct: Number($("taxPct").value) / 100,
-    },
-    lotPrice: Number($("lotPrice").value),
-    salePrice: salePrice === "" ? null : Number(salePrice),
+    plan: dropNulls({ livingAreaSqft: num("sqft"), beds: num("beds"), baths: num("baths") }),
+    costs: dropNulls({
+      constructionCostPerSqft: num("constCost"),
+      sellingCostPct: num("sellPct", 100),
+      targetMarginPct: num("marginPct", 100),
+      siteDevCost: num("cityFees"),
+    }),
+    specCosts: dropNulls({
+      softCostPct: num("softPct", 100),
+      contingencyPct: num("contPct", 100),
+      cityFees: num("cityFees"),
+      buildersRisk: num("buildersRisk"),
+      months: num("months"),
+      loanRatePct: num("loanRate", 100),
+      loanToCostPct: num("ltc", 100),
+      propertyTaxPct: num("taxPct", 100),
+    }),
+    lotPrice: num("lotPrice"),
+    salePrice: num("salePrice"),
   };
 }
 
@@ -330,7 +346,7 @@ function row(label, value, cls) {
 function render(data) {
   const badge = $("sourceBadge");
   if (data.dataSource === "live") { badge.textContent = "Live MLS comps"; badge.className = "badge live"; }
-  else { badge.textContent = "Sample data (no MLS key set)"; badge.className = "badge mock"; }
+  else if (data.dataSource === "mock") { badge.textContent = "Sample data (no MLS key set)"; badge.className = "badge mock"; }
 
   compsLayer.clearLayers();
   (data.compsPoints || []).forEach((p) => {
@@ -343,7 +359,11 @@ function render(data) {
   const el = $("results");
   const d = data.deal;
   if (!d) {
-    el.innerHTML = `<div class="note bad">${data.error || "Enter a lot price and plan size to check the deal."}</div>`;
+    const missingLot = $("lotPrice").value.trim() === "";
+    const msg = missingLot
+      ? "Enter what the lot costs, then check the deal again."
+      : data.error || "Enter a lot price and plan size to check the deal.";
+    el.innerHTML = `<div class="note bad">${msg}</div>`;
     return;
   }
 

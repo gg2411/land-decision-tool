@@ -8,6 +8,46 @@ const {
 } = require("../lib/core");
 const { evaluateDeal, DEFAULT_COSTS } = require("../lib/proforma");
 
+// Percentages arrive as fractions; anything outside these bands is a typo or a
+// broken client, and a pro forma built on it would look authoritative while
+// being meaningless.
+const PCT_RANGE = {
+  sellingCostPct: [0, 0.5],
+  targetMarginPct: [0, 1],
+  softCostPct: [0, 1],
+  contingencyPct: [0, 1],
+  loanRatePct: [0, 0.5],
+  loanToCostPct: [0, 1],
+  propertyTaxPct: [0, 0.2],
+};
+
+function validationError({ plan, costs, specCosts, lotPrice, salePrice }) {
+  if (!Number.isFinite(plan.livingAreaSqft) || plan.livingAreaSqft <= 0) {
+    return "Enter the size of the house in square feet.";
+  }
+  if (lotPrice != null && (!Number.isFinite(lotPrice) || lotPrice <= 0)) {
+    return "Enter what the lot costs.";
+  }
+  if (salePrice != null && (!Number.isFinite(salePrice) || salePrice <= 0)) {
+    return "Enter a sale price above zero, or leave it blank to use the comps.";
+  }
+  if (!Number.isFinite(costs.constructionCostPerSqft) || costs.constructionCostPerSqft <= 0) {
+    return "Enter a build cost per square foot above zero.";
+  }
+  for (const key of ["cityFees", "buildersRisk", "months"]) {
+    if (!Number.isFinite(specCosts[key]) || specCosts[key] < 0) {
+      return `${key} must be zero or more.`;
+    }
+  }
+  for (const [key, [lo, hi]] of Object.entries(PCT_RANGE)) {
+    const v = specCosts[key];
+    if (!Number.isFinite(v) || v < lo || v > hi) {
+      return `${key} must be between ${lo * 100}% and ${hi * 100}%.`;
+    }
+  }
+  return null;
+}
+
 module.exports = async (req, res) => {
   if (req.method !== "POST") {
     res.status(405).json({ error: "Use POST" });
@@ -47,6 +87,12 @@ module.exports = async (req, res) => {
 
     if (!polygon || !Array.isArray(polygon) || polygon.length < 3) {
       res.status(400).json({ error: "polygon must be an array of at least 3 [lat, lon] pairs" });
+      return;
+    }
+
+    const invalid = validationError({ plan, costs, specCosts, lotPrice, salePrice });
+    if (invalid) {
+      res.status(400).json({ error: invalid });
       return;
     }
 

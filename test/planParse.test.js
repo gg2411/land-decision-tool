@@ -32,10 +32,31 @@ test("normalizePlan drops junk values and implausible areas", () => {
   assert.match(huge.notes, /outside the plausible range/);
 });
 
-test("planProvider prefers OpenAI and reports when nothing is configured", () => {
-  assert.equal(planProvider({ OPENAI_API_KEY: "a", ANTHROPIC_API_KEY: "b" }), "openai");
+test("planProvider prefers OpenAI for images and Anthropic for PDFs", () => {
+  const both = { OPENAI_API_KEY: "a", ANTHROPIC_API_KEY: "b" };
+  assert.equal(planProvider(both), "openai");
+  assert.equal(planProvider(both, true), "anthropic");
+  assert.equal(planProvider({ OPENAI_API_KEY: "a" }, true), "openai");
   assert.equal(planProvider({ ANTHROPIC_API_KEY: "b" }), "anthropic");
   assert.equal(planProvider({}), null);
+});
+
+test("a PDF goes to Anthropic even when an OpenAI key is also set", async () => {
+  const pdf = "data:application/pdf;base64,JVBERi0=";
+  let seenUrl = null;
+  const fakeFetch = async (url) => {
+    seenUrl = url;
+    return { ok: true, json: async () => ({ content: [{ type: "text", text: '{"livingAreaSqft":2800}' }] }) };
+  };
+  const out = await extractPlan({ fileDataUrl: pdf }, { OPENAI_API_KEY: "a", ANTHROPIC_API_KEY: "b" }, fakeFetch);
+  assert.equal(out.provider, "anthropic");
+  assert.match(seenUrl, /anthropic\.com/);
+  assert.equal(out.plan.livingAreaSqft, 2800);
+});
+
+test("a PDF with only an OpenAI key explains what to upload instead", async () => {
+  const pdf = "data:application/pdf;base64,JVBERi0=";
+  await assert.rejects(() => extractPlan({ fileDataUrl: pdf }, { OPENAI_API_KEY: "a" }, async () => {}), /JPG or PNG/);
 });
 
 test("extractPlan explains itself when no model is configured", async () => {
