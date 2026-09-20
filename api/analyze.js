@@ -64,6 +64,10 @@ module.exports = async (req, res) => {
       res.status(400).json({ error: "polygon must be an array of at least 3 [lat, lon] pairs" });
       return;
     }
+    if (polygon.length > 500) {
+      res.status(400).json({ error: "polygon has too many vertices (max 500)" });
+      return;
+    }
 
     const apiKey = process.env.REPLIERS_API_KEY || process.env.HAR_API_KEY;
     const boardId = process.env.REPLIERS_BOARD_ID;
@@ -176,10 +180,12 @@ module.exports = async (req, res) => {
       const zipCounts = {};
       for (const p of hcadParcels) if (p.zip) zipCounts[p.zip] = (zipCounts[p.zip] || 0) + 1;
       const zips = Object.keys(zipCounts).sort((a, b) => zipCounts[b] - zipCounts[a]);
-      try {
-        web = await fetchWebPpsf({ zips, apiKey: tavilyKey });
-      } catch (err) {
-        web = { error: String(err.message || err) };
+      if (zips.length) {
+        try {
+          web = await fetchWebPpsf({ zips, apiKey: tavilyKey });
+        } catch (err) {
+          web = { error: String(err.message || err) };
+        }
       }
     }
 

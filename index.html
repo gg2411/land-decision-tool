@@ -543,7 +543,11 @@ function render(data) {
         <div class="kv"><span class="k">Range</span><span>$${Math.round(w.ppsfLow)}–$${Math.round(w.ppsfHigh)}</span></div>
         <div class="kv"><span class="k">Signals</span><span>${w.n}</span></div>`;
       (w.sources || []).forEach(s => {
-        html += `<div class="hint" style="margin-top:4px"><a target="_blank" rel="noopener" href="${escapeHtml(String(s.url || '#'))}">${escapeHtml(String(s.title || s.url))}</a> — ${s.ppsf.map(v => '$' + escapeHtml(String(v))).join(', ')}/sqft</div>`;
+        const label = escapeHtml(String(s.title || s.url || 'source'));
+        const link = /^https?:\/\//i.test(String(s.url || ''))
+          ? `<a target="_blank" rel="noopener" href="${escapeHtml(String(s.url))}">${label}</a>`
+          : label;
+        html += `<div class="hint" style="margin-top:4px">${link} — ${s.ppsf.map(v => '$' + escapeHtml(String(v))).join(', ')}/sqft</div>`;
       });
       html += `<button id="useWebPpsf" style="width:100%;margin-top:8px;background:var(--panel-2);color:var(--text);border:1px solid var(--border)">Use $${Math.round(w.medianPpsf)} as ARV override</button>`;
     } else {

@@ -7,6 +7,30 @@ test("extractPpsf pulls $/sqft figures", () => {
   assert.deepEqual(extractPpsf("Sold at $1,050 per square foot"), [1050]);
   assert.deepEqual(extractPpsf("median of $430 per sqft"), [430]);
   assert.deepEqual(extractPpsf("sold for $450,000, 2,000 sqft"), []);
+  // value-after-unit phrasing seen in real Tavily results
+  assert.deepEqual(extractPpsf("median price per square foot of $513"), [513]);
+  assert.deepEqual(extractPpsf("price per square foot was $556.75"), [556]);
+});
+
+test("summarizeWebResults dedupes by hostname and folds in the answer", () => {
+  const s = summarizeWebResults(
+    [
+      { title: "A1", url: "https://orchard.com/x", content: "$300/sq ft" },
+      { title: "A2", url: "https://orchard.com/y", content: "$310/sqft" },
+      { title: "B", url: "https://har.com/z", content: "$400 per square foot" },
+    ],
+    "The median price per square foot of sold homes was $513."
+  );
+  assert.equal(s.sources.length, 3); // A2 deduped by hostname; +1 Tavily summary
+  assert.equal(s.sources[0].title, "A1");
+  assert.equal(s.sources[2].title, "Tavily summary");
+  assert.equal(s.sources[2].url, null);
+  assert.deepEqual(s.sources[2].ppsf, [513]);
+  assert.equal(s.answer, "The median price per square foot of sold homes was $513.");
+  assert.deepEqual(
+    s.sources.map((x) => x.ppsf[0]).sort((a, b) => a - b),
+    [300, 400, 513]
+  );
 });
 
 test("extractPpsf filters out-of-range values and dedupes", () => {
