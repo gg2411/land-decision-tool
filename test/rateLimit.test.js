@@ -26,11 +26,19 @@ test("clientKey ignores headers a caller can forge", () => {
     "an untrusted x-forwarded-for must not become the key"
   );
   assert.equal(
+    clientKey({ headers: { "x-vercel-forwarded-for": "1.2.3.4", "x-real-ip": "1.2.3.4" }, socket }, {}),
+    "10.0.0.1",
+    "platform headers are forgeable when no platform sets them"
+  );
+  assert.equal(
     clientKey({ headers: { "x-forwarded-for": "1.2.3.4, 203.0.113.5" }, socket }, { TRUST_PROXY: "1" }),
     "203.0.113.5",
     "behind a trusted proxy, the hop the proxy saw wins"
   );
-  assert.equal(clientKey({ headers: { "x-vercel-forwarded-for": "198.51.100.7" }, socket }, {}), "198.51.100.7");
+  assert.equal(
+    clientKey({ headers: { "x-vercel-forwarded-for": "198.51.100.7" }, socket }, { VERCEL: "1" }),
+    "198.51.100.7"
+  );
   assert.equal(clientKey({ headers: {}, socket }, {}), "10.0.0.1");
   assert.equal(clientKey({ headers: {} }, {}), "unknown");
 });
@@ -39,7 +47,8 @@ test("/api/parse-plan returns 429 once a caller floods it", async () => {
   const handler = require("../api/parse-plan");
   const req = () => ({
     method: "POST",
-    headers: { "x-vercel-forwarded-for": "198.51.100.9" },
+    headers: {},
+    socket: { remoteAddress: "198.51.100.9" },
     body: { file: "data:image/png;base64,PHNjcmlwdD4=" },
   });
   const run = async () => {

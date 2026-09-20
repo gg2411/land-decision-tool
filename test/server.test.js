@@ -34,6 +34,13 @@ test("the dev server answers a bad request as a bad request", async (t) => {
   const missing = await fetch(`http://127.0.0.1:${port}/api/nope`, { method: "POST", body: "{}" });
   assert.equal(missing.status, 404);
 
+  const huge = await fetch(`http://127.0.0.1:${port}/api/analyze`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: "x".repeat(21 * 1024 * 1024),
+  });
+  assert.equal(huge.status, 413, "an oversize body gets an answer, not a dropped connection");
+
   const source = await fetch(`http://127.0.0.1:${port}/server.js`);
   assert.equal(source.status, 404);
 });

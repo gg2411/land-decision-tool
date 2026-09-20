@@ -15,14 +15,17 @@ const PUBLIC_FILES = new Map([
 function readBody(req) {
   return new Promise((resolve, reject) => {
     let size = 0;
+    let over = false;
     const chunks = [];
     req.on("data", (c) => {
+      if (over) return; // keep draining: destroying the socket kills the 413 too
       size += c.length;
       if (size > MAX_BODY) {
+        over = true;
+        chunks.length = 0;
         const tooBig = new Error("Request body too large");
         tooBig.statusCode = 413;
         reject(tooBig);
-        req.destroy();
         return;
       }
       chunks.push(c);
