@@ -350,8 +350,15 @@ function row(label, value, cls) {
 
 function render(data) {
   const badge = $("sourceBadge");
-  if (data.dataSource === "live") { badge.textContent = "Live MLS comps"; badge.className = "badge live"; }
-  else if (data.dataSource === "mock") { badge.textContent = "Sample data (no MLS key set)"; badge.className = "badge mock"; }
+  const sources = {
+    live: ["Live MLS comps", "badge live"],
+    hcad: ["HCAD public records", "badge mock"],
+    "live-empty": ["No MLS listings here", "badge mock"],
+    mock: ["Sample data (no MLS key set)", "badge mock"],
+  };
+  if (sources[data.dataSource]) {
+    [badge.textContent, badge.className] = sources[data.dataSource];
+  }
 
   compsLayer.clearLayers();
   (data.compsPoints || []).forEach((p) => {
