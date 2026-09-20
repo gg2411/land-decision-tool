@@ -197,14 +197,23 @@ function circlePolygon(lat, lon, miles, points = 24) {
   });
 }
 
+// A typed radius can be blank, negative or absurd; the circle and the hint have
+// to agree on the distance actually searched.
+function searchRadiusMiles() {
+  const typed = Number($("radius").value);
+  if (!Number.isFinite(typed) || typed <= 0) return 0.5;
+  return Math.min(typed, 10);
+}
+
 function setLot(lat, lon) {
   if (lotMarker) map.removeLayer(lotMarker);
   lotMarker = L.marker([lat, lon]).addTo(map).bindPopup("Your lot").openPopup();
-  polygon = circlePolygon(lat, lon, Number($("radius").value) || 0.5);
+  const miles = searchRadiusMiles();
+  polygon = circlePolygon(lat, lon, miles);
   if (polyLayer) map.removeLayer(polyLayer);
   polyLayer = L.polygon(polygon, { color: "#1f5c9e", weight: 2, fillOpacity: 0.07 }).addTo(map);
   $("lotHint").className = "note";
-  $("lotHint").textContent = `Lot set at ${lat.toFixed(5)}, ${lon.toFixed(5)} — comps within ${$("radius").value} miles.`;
+  $("lotHint").textContent = `Lot set at ${lat.toFixed(5)}, ${lon.toFixed(5)} — comps within ${miles} miles.`;
 }
 
 map.on("click", (e) => {

@@ -19,7 +19,9 @@ function readBody(req) {
     req.on("data", (c) => {
       size += c.length;
       if (size > MAX_BODY) {
-        reject(new Error("Request body too large"));
+        const tooBig = new Error("Request body too large");
+        tooBig.statusCode = 413;
+        reject(tooBig);
         req.destroy();
         return;
       }
@@ -31,7 +33,9 @@ function readBody(req) {
       try {
         resolve(JSON.parse(raw));
       } catch (err) {
-        reject(new Error("Invalid JSON body"));
+        const bad = new Error("Invalid JSON body");
+        bad.statusCode = 400;
+        reject(bad);
       }
     });
     req.on("error", reject);
@@ -64,7 +68,10 @@ const server = http.createServer(async (req, res) => {
       req.body = req.method === "POST" ? await readBody(req) : {};
       await require(file)(req, decorate(res));
     } catch (err) {
-      decorate(res).status(500).json({ error: String(err.message || err) });
+      // A body the client sent wrong is the client's error, not a server fault.
+      decorate(res)
+        .status(err.statusCode || 500)
+        .json({ error: String(err.message || err) });
     }
     return;
   }
