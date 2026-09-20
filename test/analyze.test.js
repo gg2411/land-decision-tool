@@ -49,6 +49,11 @@ test("a cleared size field is rejected instead of falling back to the default", 
   assert.match(r.payload.error, /square feet/);
 });
 
+test("a malformed plan value falls back to the default instead of erroring", async () => {
+  const r = await call({ ...valid, plan: "unknown" });
+  assert.notEqual(r.status, 500);
+});
+
 test("out-of-range percentages are rejected", async () => {
   const r = await call({ ...valid, specCosts: { loanRatePct: 8.5 } }); // sent as 850%, not 0.085
   assert.equal(r.status, 400);
