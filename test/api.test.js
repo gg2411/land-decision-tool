@@ -5,6 +5,7 @@ const handler = require("../api/analyze");
 // Tests exercise the deterministic mock path regardless of local credentials.
 delete process.env.REPLIERS_API_KEY;
 delete process.env.HAR_API_KEY;
+process.env.LDT_SKIP_HCAD = "1"; // keep tests offline
 
 const SQUARE = [
   [29.75, -95.4],
@@ -49,6 +50,31 @@ test("asking is null without lotAskingPrice", async () => {
   await handler({ method: "POST", body: { polygon: SQUARE } }, res);
   assert.equal(res.statusCode, 200);
   assert.equal(res.body.asking, null);
+});
+
+test("ARV $/sqft override runs residual without comps", async () => {
+  const res = makeRes();
+  await handler(
+    { method: "POST", body: { polygon: SQUARE, arvPpsf: 400 } },
+    res
+  );
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.result.arv, 960000);
+  assert.equal(res.body.arvSource, "override");
+
+  // With filters that match no comps, the override still produces a result.
+  const res2 = makeRes();
+  await handler(
+    {
+      method: "POST",
+      body: { polygon: SQUARE, arvPpsf: 400, compsFilter: { minBeds: 9 } },
+    },
+    res2
+  );
+  assert.equal(res2.statusCode, 200);
+  assert.equal(res2.body.comps.n, 0);
+  assert.equal(res2.body.error, null);
+  assert.equal(res2.body.result.arv, 960000);
 });
 
 test("405 on GET", async () => {
