@@ -352,8 +352,8 @@ function render(data) {
   const badge = $("sourceBadge");
   const sources = {
     live: ["Live MLS comps", "badge live"],
-    hcad: ["HCAD public records", "badge mock"],
-    "live-empty": ["No MLS listings here", "badge mock"],
+    hcad: ["No nearby sales found", "badge mock"],
+    "live-empty": ["No nearby sales found", "badge mock"],
     mock: ["Sample data (no MLS key set)", "badge mock"],
   };
   if (sources[data.dataSource]) {

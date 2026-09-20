@@ -271,10 +271,10 @@ module.exports = async (req, res) => {
     if (!result) {
       error =
         dataSource === "hcad"
-          ? "No MLS listings in this polygon from the connected Repliers feed. Showing HCAD public records instead — enter an ARV $/sqft override to run the residual."
+          ? "No homes have sold nearby in the MLS feed, so there is no market evidence for the sale price — widen the search radius, or treat the sale price you typed as an assumption."
           : dataSource === "live-empty"
-            ? "No MLS listings in this polygon from the connected Repliers feed (and no HCAD coverage here)."
-            : "No comps matched the filters inside this polygon — widen the polygon or the size/bed filters.";
+            ? "No homes have sold nearby in the MLS feed — widen the search radius, or treat the sale price you typed as an assumption."
+            : "No sold homes close enough in size matched inside this area — widen the search radius to check your sale price against the market.";
     }
 
     const usedSet = new Set(comps.usedKeys || []);
