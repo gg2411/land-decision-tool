@@ -51,6 +51,7 @@
   }
   .badge.live { color: var(--good); border-color: var(--good); }
   .badge.mock { color: var(--warn); border-color: var(--warn); }
+  .badge.hcad { color: #b48cff; border-color: #b48cff; }
   fieldset {
     border: 1px solid var(--border);
     border-radius: 10px;
@@ -166,11 +167,15 @@
         <div><label>Sold within (months)<input id="soldMonths" type="number" value="12" /></label></div>
         <div><label>Min year built<input id="minYear" type="number" placeholder="any" /></label></div>
       </div>
+      <label>ARV $/sqft override (optional)<input id="arvPpsf" type="number" placeholder="use comps" /></label>
     </fieldset>
 
     <fieldset>
       <legend>Deal check (optional)</legend>
-      <label>Lot asking price ($)<input id="askPrice" type="number" placeholder="e.g. 250000" /></label>
+      <div class="row">
+        <div><label>Lot asking price ($)<input id="askPrice" type="number" placeholder="e.g. 250000" /></label></div>
+        <div><label>Lot sqft<input id="lotSqft" type="number" placeholder="for $/sqft vs HCAD" /></label></div>
+      </div>
       <div class="row">
         <div><label>Total lot price ($)<input id="splitPrice" type="number" placeholder="e.g. 650000" /></label></div>
         <div><label>Total lot sqft<input id="splitSqft" type="number" placeholder="e.g. 14000" /></label></div>
@@ -210,7 +215,7 @@ let prevPolygon = null;
 let markersByKey = {};
 
 const INPUT_IDS = ['sqft', 'beds', 'baths', 'constCost', 'sellPct', 'marginPct', 'siteDev',
-  'sqftTol', 'minBeds', 'soldMonths', 'minYear', 'askPrice', 'splitPrice', 'splitSqft', 'splitN'];
+  'sqftTol', 'minBeds', 'soldMonths', 'minYear', 'arvPpsf', 'askPrice', 'lotSqft', 'splitPrice', 'splitSqft', 'splitN'];
 
 function redrawDrawLayer() {
   if (drawLayer) map.removeLayer(drawLayer);
@@ -335,8 +340,12 @@ async function analyze() {
   };
   const minYear = document.getElementById('minYear').value;
   if (minYear) body.compsFilter.minYearBuilt = Number(minYear);
+  const arvPpsf = Number(document.getElementById('arvPpsf').value);
+  if (arvPpsf > 0) body.arvPpsf = arvPpsf;
   const askPrice = Number(document.getElementById('askPrice').value);
   if (askPrice > 0) body.lotAskingPrice = askPrice;
+  const lotSqft = Number(document.getElementById('lotSqft').value);
+  if (lotSqft > 0) body.lotSqft = lotSqft;
 
   const splitPrice = document.getElementById('splitPrice').value;
   const splitSqft = document.getElementById('splitSqft').value;
@@ -386,8 +395,11 @@ function pointStyle(p) {
 function render(data) {
   const badge = document.getElementById('sourceBadge');
   if (data.dataSource === 'live') {
-    badge.textContent = '● Live HAR data';
+    badge.textContent = '● Live MLS data (Repliers)';
     badge.className = 'badge live';
+  } else if (data.dataSource === 'hcad') {
+    badge.textContent = '● HCAD public records (no MLS coverage here)';
+    badge.className = 'badge hcad';
   } else {
     badge.textContent = '● Mock data (no REPLIERS_API_KEY set)';
     badge.className = 'badge mock';
@@ -400,22 +412,38 @@ function render(data) {
     const m = L.circleMarker([p.lat, p.lon], pointStyle(p)).bindPopup(pointPopup(p)).addTo(compsLayer);
     if (p.listingKey) markersByKey[p.listingKey] = m;
   });
+  (data.hcadPoints || []).forEach(p => {
+    if (p.lat == null || p.lon == null) return;
+    L.circleMarker([p.lat, p.lon], {
+      radius: 3, color: '#b48cff', fillColor: '#b48cff', fillOpacity: p.vacant ? 0.9 : 0.35, weight: 1,
+    }).bindPopup([
+      p.address ? `<b>${escapeHtml(p.address)}</b>` : null,
+      p.neighborhood ? escapeHtml(p.neighborhood) : null,
+      `Land ${fmtMoney(p.landValue)} ($${p.landPpsf ?? '—'}/sqft) · lot ${p.lotSqft ?? '—'} sqft`,
+      `Market value ${fmtMoney(p.marketValue)}`,
+      p.transferDate ? `Transferred ${fmtDate(p.transferDate)}` : null,
+      p.vacant ? 'Vacant lot' : null,
+    ].filter(Boolean).join('<br>')).addTo(compsLayer);
+  });
 
   const el = document.getElementById('results');
   let html = '';
   if (data.counts) {
     html += `<div class="kv"><span class="k">Sold / Pending / Active in polygon</span><span>${data.counts.sold} / ${data.counts.pending} / ${data.counts.active}</span></div>`;
   }
+  if (data.hcadPoints && data.hcadPoints.length) {
+    html += `<div class="hint">◦ purple = HCAD parcels</div>`;
+  }
   if (data.error) {
-    el.innerHTML = html + `<div class="err">${escapeHtml(data.error)}</div>`;
-    return;
+    html += `<div class="err">${escapeHtml(data.error)}</div>`;
   }
 
-  const r = data.result;
-  const s = data.sensitivity;
-  html += `
+  if (data.result) {
+    const r = data.result;
+    const s = data.sensitivity;
+    html += `
     <div class="kv"><span class="k">Comps used (filtered)</span><span>${data.comps.n}</span></div>
-    <div class="kv"><span class="k">Median $/sqft</span><span>$${Math.round(data.comps.medianPricePerSqft || 0)}</span></div>
+    <div class="kv"><span class="k">${data.arvSource === 'override' ? 'ARV $/sqft (override)' : 'Median $/sqft'}</span><span>$${Math.round(r.ppsfUsed || data.comps.medianPricePerSqft || 0)}</span></div>
 
     <div class="headline">
       <div class="num">${fmtMoney(r.maxLandPrice)}</div>
@@ -461,6 +489,34 @@ function render(data) {
         <div class="kv"><span class="k">Profitable?</span><span style="color:${sp.profitable ? '#38c172' : '#e0554e'}">${sp.profitable ? 'Yes' : 'No'} (${fmtMoney(sp.marginVsMax)})</span></div>
       </fieldset>
     `;
+  }
+  }
+
+  if (data.hcad) {
+    const h = data.hcad;
+    html += `
+      <fieldset style="margin-top:14px;">
+        <legend>HCAD land benchmark (public records)</legend>`;
+    if (h.error) {
+      html += `<div class="err">HCAD lookup failed: ${escapeHtml(h.error)}</div>`;
+    } else if (!h.n) {
+      html += `<div class="kv"><span class="k">No eligible parcels</span></div>`;
+    } else {
+      html += `
+        <div class="kv"><span class="k">Median land value</span><span>$${h.medianLandValuePerSqft}/sqft</span></div>
+        <div class="kv"><span class="k">Range (25th–75th pct)</span><span>$${h.landPpsfLow}–$${h.landPpsfHigh}/sqft</span></div>
+        <div class="kv"><span class="k">Parcels used</span><span>${h.n} (${h.basis === 'recent-transfers' ? 'transferred in window' : 'all parcels'}) of ${h.nParcels}</span></div>
+        <div class="kv"><span class="k">Vacant lots in polygon</span><span>${h.nVacant}</span></div>
+        <div class="kv"><span class="k">Median lot size</span><span>${h.medianLotSqft ? h.medianLotSqft.toLocaleString() + ' sqft' : '—'}</span></div>`;
+      if (h.asking) {
+        const prem = h.asking.premiumPct;
+        const ok = prem <= 0.15;
+        html += `
+        <div class="kv"><span class="k">Asking vs HCAD</span><span style="color:${ok ? '#38c172' : '#e0554e'}">$${h.asking.askingPerSqft}/sqft vs $${h.medianLandValuePerSqft}/sqft (${prem >= 0 ? '+' : '−'}${Math.abs(prem * 100).toFixed(1)}%)</span></div>
+        <div class="kv"><span class="k">HCAD-implied lot value</span><span>${fmtMoney(h.asking.hcadLandValue)}</span></div>`;
+      }
+    }
+    html += `</fieldset>`;
   }
 
   const usedComps = (data.compsPoints || [])
