@@ -6,6 +6,7 @@ const {
   mockDataset,
   fetchAllStatuses,
 } = require("../lib/core");
+const { evaluateDeal, DEFAULT_COSTS } = require("../lib/proforma");
 
 module.exports = async (req, res) => {
   if (req.method !== "POST") {
@@ -22,11 +23,21 @@ module.exports = async (req, res) => {
       baths: Number(body.plan?.baths ?? 3),
     };
     const costs = {
-      constructionCostPerSqft: Number(body.costs?.constructionCostPerSqft ?? 185),
-      sellingCostPct: Number(body.costs?.sellingCostPct ?? 0.07),
-      targetMarginPct: Number(body.costs?.targetMarginPct ?? 0.15),
+      constructionCostPerSqft: Number(body.costs?.constructionCostPerSqft ?? DEFAULT_COSTS.hardCostPerSqft),
+      sellingCostPct: Number(body.costs?.sellingCostPct ?? DEFAULT_COSTS.sellingCostPct),
+      targetMarginPct: Number(body.costs?.targetMarginPct ?? DEFAULT_COSTS.targetMarginPct),
       siteDevCost: Number(body.costs?.siteDevCost ?? 35000),
     };
+    // Full build-to-sell economics (soft costs, carry, financing, selling).
+    const specCosts = {
+      ...DEFAULT_COSTS,
+      ...(body.specCosts || {}),
+      hardCostPerSqft: costs.constructionCostPerSqft,
+      sellingCostPct: costs.sellingCostPct,
+      targetMarginPct: costs.targetMarginPct,
+    };
+    const lotPrice = body.lotPrice != null ? Number(body.lotPrice) : null;
+    const salePrice = body.salePrice != null ? Number(body.salePrice) : null;
     const compsFilter = {
       minSqft: body.compsFilter?.minSqft ?? plan.livingAreaSqft * 0.8,
       maxSqft: body.compsFilter?.maxSqft ?? plan.livingAreaSqft * 1.2,
@@ -76,6 +87,24 @@ module.exports = async (req, res) => {
       error = "No comps matched the filters inside this polygon — widen the polygon or the size/bed filters.";
     }
 
+    // Build-to-sell verdict. Falls back to the comp median value of the plan
+    // when the user has not typed a target sale price.
+    let deal = null;
+    if (lotPrice != null && plan.livingAreaSqft > 0) {
+      const compSale = comps.medianPricePerSqft ? comps.medianPricePerSqft * plan.livingAreaSqft : null;
+      const effectiveSale = salePrice || compSale;
+      if (effectiveSale) {
+        deal = evaluateDeal({
+          salePrice: effectiveSale,
+          sqft: plan.livingAreaSqft,
+          lotPrice,
+          costs: specCosts,
+          comps: comps.n > 0 ? comps : null,
+        });
+        deal.salePriceSource = salePrice ? "user" : "comps";
+      }
+    }
+
     let split = null;
     if (splitScenario && result) {
       split = splitLotScenario(
@@ -93,6 +122,7 @@ module.exports = async (req, res) => {
       counts: { sold: soldInPoly.length, pending: pendingInPoly.length, active: activeInPoly.length },
       comps,
       result,
+      deal,
       sensitivity,
       split,
       error,

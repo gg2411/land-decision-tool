@@ -3,344 +3,418 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Land Decision Tool — Houston</title>
+<title>Spec Home Deal Check — Houston</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
 <style>
-  :root {
-    --bg: #0f1115;
-    --panel: #171a21;
-    --panel-2: #1e222b;
-    --border: #2a2f3a;
-    --text: #e8eaed;
-    --muted: #9aa1ac;
-    --accent: #4f8cff;
-    --good: #38c172;
-    --warn: #e0a13e;
-    --bad: #e0554e;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  :root{
+    --ink:#16202b; --muted:#5b6b7c; --line:#e2e8f0; --bg:#f6f8fb;
+    --blue:#1f5c9e; --blue-soft:#eaf1f9;
+    --green:#137a45; --green-soft:#e7f6ed;
+    --amber:#9a6708; --amber-soft:#fdf4e3;
+    --red:#b02222; --red-soft:#fdeded;
   }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0;
-    background: var(--bg);
-    color: var(--text);
-    display: flex;
-    height: 100vh;
-    overflow: hidden;
-  }
-  #map { flex: 1 1 auto; height: 100%; }
-  #sidebar {
-    width: 380px;
-    flex: 0 0 380px;
-    background: var(--panel);
-    border-left: 1px solid var(--border);
-    padding: 18px;
-    overflow-y: auto;
-  }
-  h1 { font-size: 17px; margin: 0 0 4px; }
-  .subtitle { color: var(--muted); font-size: 12.5px; margin-bottom: 16px; }
-  .badge {
-    display: inline-block;
-    font-size: 11px;
-    padding: 2px 8px;
-    border-radius: 999px;
-    background: var(--panel-2);
-    border: 1px solid var(--border);
-    color: var(--muted);
-    margin-bottom: 14px;
-  }
-  .badge.live { color: var(--good); border-color: var(--good); }
-  .badge.mock { color: var(--warn); border-color: var(--warn); }
-  fieldset {
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    margin-bottom: 14px;
-    padding: 10px 12px 12px;
-  }
-  legend { font-size: 12px; color: var(--muted); padding: 0 4px; }
-  label { display: block; font-size: 12.5px; color: var(--muted); margin-top: 8px; }
-  input {
-    width: 100%;
-    background: var(--panel-2);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    color: var(--text);
-    padding: 6px 8px;
-    font-size: 13px;
-    margin-top: 3px;
-  }
-  .row { display: flex; gap: 8px; }
-  .row > div { flex: 1; }
-  button {
-    cursor: pointer;
-    border: none;
-    border-radius: 8px;
-    padding: 9px 12px;
-    font-size: 13px;
-    font-weight: 600;
-  }
-  #drawBtn { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); width: 100%; margin-bottom: 8px; }
-  #drawBtn.active { border-color: var(--accent); color: var(--accent); }
-  #analyzeBtn { background: var(--accent); color: white; width: 100%; margin-top: 4px; }
-  #analyzeBtn:disabled { opacity: 0.5; cursor: not-allowed; }
-  #results { margin-top: 16px; }
-  .kv { display: flex; justify-content: space-between; font-size: 13px; padding: 3px 0; }
-  .kv .k { color: var(--muted); }
-  .headline {
-    background: var(--panel-2);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 12px;
-    margin: 10px 0;
-    text-align: center;
-  }
-  .headline .num { font-size: 26px; font-weight: 700; color: var(--good); }
-  .headline .lbl { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
-  .sens { display: flex; gap: 8px; margin-top: 8px; }
-  .sens > div { flex: 1; background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; padding: 8px; text-align: center; }
-  .sens .n { font-size: 15px; font-weight: 700; }
-  .sens .l { font-size: 10.5px; color: var(--muted); }
-  .err { color: var(--bad); font-size: 13px; margin-top: 10px; }
-  .hint { font-size: 11.5px; color: var(--muted); margin-top: 6px; line-height: 1.4; }
-  #legend-box {
-    position: absolute; bottom: 20px; left: 20px; z-index: 500;
-    background: rgba(23,26,33,0.9); border: 1px solid var(--border);
-    border-radius: 8px; padding: 8px 12px; font-size: 12px; color: var(--text);
-  }
-  #legend-box span { display: inline-flex; align-items: center; margin-right: 12px; }
-  #legend-box i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; margin-right: 5px; }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:var(--bg);color:var(--ink);font-size:17px;line-height:1.5;
+       font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+       display:flex;flex-direction:column}
+  header{background:#fff;border-bottom:1px solid var(--line);padding:14px 20px;display:flex;
+         align-items:baseline;gap:14px;flex-wrap:wrap}
+  h1{font-size:21px;margin:0}
+  .tagline{color:var(--muted);font-size:15px;flex:1}
+  .badge{font-size:13px;padding:3px 11px;border-radius:999px;border:1px solid var(--line);color:var(--muted);background:#fff}
+  .badge.live{color:var(--green);border-color:#a9dcc0;background:var(--green-soft)}
+  .badge.mock{color:var(--amber);border-color:#eccf95;background:var(--amber-soft)}
+  #layout{flex:1;display:flex;min-height:0}
+  #map{flex:1;min-width:280px}
+  #panel{width:470px;flex:none;background:#fff;border-left:1px solid var(--line);overflow-y:auto;padding:22px}
+  @media(max-width:920px){#layout{flex-direction:column}#map{height:300px}#panel{width:auto;border-left:none;border-top:1px solid var(--line)}}
+  .step{display:flex;align-items:center;gap:10px;margin:0 0 3px}
+  .step .n{width:29px;height:29px;border-radius:50%;background:var(--blue);color:#fff;display:flex;
+           align-items:center;justify-content:center;font-weight:700;font-size:15px;flex:none}
+  .step h2{font-size:18px;margin:0}
+  .hint{color:var(--muted);font-size:14.5px;margin:2px 0 14px 39px}
+  section{padding-bottom:20px;margin-bottom:20px;border-bottom:1px solid var(--line)}
+  label{display:block;font-weight:600;margin:14px 0 6px;font-size:15.5px}
+  label .sm{font-weight:400;color:var(--muted);font-size:13.5px}
+  input[type=number],input[type=text]{width:100%;padding:12px 13px;font-size:18px;border:1.5px solid #cfd8e3;
+       border-radius:10px;background:#fff;color:var(--ink)}
+  input:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-soft)}
+  .money{position:relative}
+  .money input{padding-left:28px}
+  .money::before{content:"$";position:absolute;left:12px;top:12px;color:var(--muted);font-size:18px}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+  .drop{border:2px dashed #b9c7d6;border-radius:12px;background:#fbfdff;padding:22px;text-align:center;cursor:pointer}
+  .drop:hover{border-color:var(--blue);background:var(--blue-soft)}
+  .drop strong{display:block;font-size:16px}
+  .drop span{color:var(--muted);font-size:14px}
+  #planPreview{display:none;margin-top:12px}
+  #planPreview img{max-width:100%;border-radius:10px;border:1px solid var(--line)}
+  #planMsg{font-size:14.5px;margin-top:8px;color:var(--muted)}
+  button.primary{background:var(--blue);color:#fff;border:none;border-radius:10px;padding:14px 20px;
+      font-size:17px;font-weight:600;cursor:pointer;width:100%;margin-top:18px}
+  button.primary:disabled{opacity:.55;cursor:not-allowed}
+  button.link{background:none;border:none;color:var(--blue);font-size:14.5px;cursor:pointer;padding:0;text-decoration:underline}
+  .verdict{border-radius:14px;padding:20px;margin-bottom:16px;border:1px solid}
+  .verdict h3{margin:0 0 5px;font-size:24px}
+  .verdict p{margin:0;font-size:15.5px}
+  .v-go{background:var(--green-soft);border-color:#a9dcc0;color:var(--green)}
+  .v-thin{background:var(--amber-soft);border-color:#eccf95;color:var(--amber)}
+  .v-no{background:var(--red-soft);border-color:#eeb2b2;color:var(--red)}
+  .big{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+  .big div{flex:1;min-width:140px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:13px}
+  .big .k{font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
+  .big .v{font-size:25px;font-weight:700;margin-top:2px}
+  .pos{color:var(--green)} .neg{color:var(--red)}
+  table{width:100%;border-collapse:collapse;font-size:15px}
+  td{padding:8px 2px;border-bottom:1px solid #eef2f6}
+  td.r{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+  tr.sub td{color:var(--muted)}
+  tr.total td{border-top:2px solid #cfd8e3;border-bottom:none;font-weight:700;font-size:16.5px;padding-top:11px}
+  details{margin-top:12px}
+  summary{cursor:pointer;font-weight:600;color:var(--blue);font-size:15.5px}
+  .note{background:#f8fafc;border-left:3px solid #9fb6cd;padding:11px 13px;font-size:14.5px;
+        border-radius:0 8px 8px 0;margin-top:12px;color:#31465c}
+  .note.warn{background:var(--amber-soft);border-left-color:#d8a33f}
+  .note.bad{background:var(--red-soft);border-left-color:#d88}
+  h4{font-size:16px;margin:20px 0 4px}
+  #legend{position:absolute;bottom:16px;left:16px;z-index:500;background:rgba(255,255,255,.93);
+          border:1px solid var(--line);border-radius:8px;padding:7px 11px;font-size:13.5px}
+  #legend i{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:5px}
+  #legend span{margin-right:12px;display:inline-flex;align-items:center}
 </style>
 </head>
 <body>
+<header>
+  <h1>Spec Home Deal Check</h1>
+  <span class="tagline">Find a lot, build your plan, sell the house &mdash; does it make money?</span>
+  <span id="sourceBadge" class="badge">checking data&hellip;</span>
+</header>
+
+<div id="layout">
   <div id="map"></div>
-  <div id="legend-box">
-    <span><i style="background:#4f8cff"></i>Sold comp</span>
-    <span><i style="background:#e0a13e"></i>Pending</span>
-    <span><i style="background:#38c172"></i>Active</span>
-  </div>
+  <div id="legend"><span><i style="background:#1f5c9e"></i>Sold nearby</span><span><i style="background:#137a45"></i>For sale</span></div>
 
-  <div id="sidebar">
-    <h1>Land Decision Tool</h1>
-    <div class="subtitle">Draw a polygon → set your floor plan &amp; costs → get the max land price you should pay.</div>
-    <div id="sourceBadge" class="badge">checking data source…</div>
+  <div id="panel">
 
-    <button id="drawBtn">✎ Draw new polygon on map</button>
+    <section>
+      <div class="step"><div class="n">1</div><h2>Where is the lot?</h2></div>
+      <p class="hint">Click the map on the lot. We pull the homes sold around it.</p>
+      <div id="lotHint" class="note">No lot picked yet &mdash; using a default area in the Heights / Near Northside.</div>
+      <label for="radius">How far to look for comparable sales <span class="sm">(miles)</span></label>
+      <input type="number" id="radius" value="0.5" step="0.1" min="0.1" max="3">
+    </section>
 
-    <fieldset>
-      <legend>Floor plan</legend>
-      <div class="row">
-        <div><label>Living area (sqft)<input id="sqft" type="number" value="2400" /></label></div>
-        <div><label>Beds<input id="beds" type="number" value="4" /></label></div>
-        <div><label>Baths<input id="baths" type="number" value="3" step="0.5" /></label></div>
+    <section>
+      <div class="step"><div class="n">2</div><h2>Your floor plan</h2></div>
+      <p class="hint">Upload the plan you build. We read the size off it &mdash; check the numbers after.</p>
+      <div class="drop" id="drop">
+        <strong>Click to upload your floor plan</strong>
+        <span>JPG, PNG or PDF</span>
+        <input type="file" id="planFile" accept="image/*,.pdf" hidden>
       </div>
-    </fieldset>
-
-    <fieldset>
-      <legend>Cost assumptions</legend>
-      <label>Construction cost ($/sqft)<input id="constCost" type="number" value="185" /></label>
-      <div class="row">
-        <div><label>Selling cost (%)<input id="sellPct" type="number" value="7" /></label></div>
-        <div><label>Target margin (%)<input id="marginPct" type="number" value="15" /></label></div>
+      <div id="planPreview"><img id="planImg" alt="floor plan"></div>
+      <div id="planMsg"></div>
+      <div class="row3">
+        <div><label for="sqft">Size <span class="sm">sq ft</span></label><input type="number" id="sqft" value="3000" step="50"></div>
+        <div><label for="beds">Beds</label><input type="number" id="beds" value="4"></div>
+        <div><label for="baths">Baths</label><input type="number" id="baths" value="3.5" step="0.5"></div>
       </div>
-      <label>Site dev / permits ($)<input id="siteDev" type="number" value="35000" /></label>
-    </fieldset>
+    </section>
 
-    <fieldset>
-      <legend>Split-lot scenario (optional)</legend>
+    <section>
+      <div class="step"><div class="n">3</div><h2>The numbers</h2></div>
+      <p class="hint">Three things decide the deal: lot price, build cost, sale price.</p>
       <div class="row">
-        <div><label>Total lot price ($)<input id="splitPrice" type="number" placeholder="e.g. 650000" /></label></div>
-        <div><label>Total lot sqft<input id="splitSqft" type="number" placeholder="e.g. 14000" /></label></div>
-        <div><label># splits<input id="splitN" type="number" value="2" /></label></div>
+        <div><label for="lotPrice">Lot price</label><div class="money"><input type="number" id="lotPrice" value="439000" step="5000"></div></div>
+        <div><label for="constCost">Build cost <span class="sm">per sq ft</span></label><div class="money"><input type="number" id="constCost" value="140" step="5"></div></div>
       </div>
-    </fieldset>
+      <label for="salePrice">Target sale price <span class="sm">&mdash; leave blank to use what comps support</span></label>
+      <div class="money"><input type="number" id="salePrice" value="1000000" step="10000"></div>
 
-    <button id="analyzeBtn">Analyze</button>
-    <div class="hint" id="polyHint">Using a default sample polygon. Click "Draw new polygon" to pick your own area.</div>
+      <details>
+        <summary>Other costs (filled in with Houston 2026 averages)</summary>
+        <div class="row">
+          <div><label for="softPct">Design + engineering <span class="sm">% of build</span></label><input type="number" id="softPct" value="12"></div>
+          <div><label for="cityFees">Permits, survey, taps</label><div class="money"><input type="number" id="cityFees" value="15000" step="1000"></div></div>
+        </div>
+        <div class="row">
+          <div><label for="months">Months lot &rarr; sale</label><input type="number" id="months" value="14"></div>
+          <div><label for="loanRate">Loan rate <span class="sm">%</span></label><input type="number" id="loanRate" value="8.5" step="0.25"></div>
+        </div>
+        <div class="row">
+          <div><label for="ltc">Loan covers <span class="sm">% of cost</span></label><input type="number" id="ltc" value="75" step="5"></div>
+          <div><label for="sellPct">Commission + closing <span class="sm">%</span></label><input type="number" id="sellPct" value="7" step="0.5"></div>
+        </div>
+        <div class="row">
+          <div><label for="contPct">Contingency <span class="sm">% of build</span></label><input type="number" id="contPct" value="7"></div>
+          <div><label for="marginPct">Profit I want <span class="sm">% of cost</span></label><input type="number" id="marginPct" value="15"></div>
+        </div>
+        <div class="row">
+          <div><label for="taxPct">Property tax <span class="sm">% / year</span></label><input type="number" id="taxPct" value="2.21" step="0.01"></div>
+          <div><label for="buildersRisk">Builder's risk insurance</label><div class="money"><input type="number" id="buildersRisk" value="6000" step="500"></div></div>
+        </div>
+      </details>
+
+      <button class="primary" id="analyzeBtn">Check this deal</button>
+      <div style="margin-top:10px"><button class="link" id="drawBtn">Draw a custom area instead</button></div>
+    </section>
 
     <div id="results"></div>
   </div>
+</div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
-const map = L.map('map', { zoomControl: true }).setView([29.72, -95.405], 13);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '&copy; OpenStreetMap contributors',
-  maxZoom: 19,
+const $ = (id) => document.getElementById(id);
+const money = (n) => (n == null || isNaN(n) ? "—" : (n < 0 ? "-" : "") + "$" + Math.round(Math.abs(n)).toLocaleString());
+
+const map = L.map("map", { zoomControl: true }).setView([29.795, -95.355], 13);
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  attribution: "&copy; OpenStreetMap contributors", maxZoom: 19,
 }).addTo(map);
 
-// Default sample polygon (roughly inner-loop Houston) so the tool is usable immediately.
-let polygon = [
-  [29.735, -95.42],
-  [29.735, -95.39],
-  [29.705, -95.39],
-  [29.705, -95.42],
-];
-let polyLayer = L.polygon(polygon, { color: '#4f8cff', weight: 2, fillOpacity: 0.08 }).addTo(map);
-let compsLayer = L.layerGroup().addTo(map);
-
+// Default: the freeway-bounded Near Northside study area (I-610 N / US-59 E / I-10 S / I-45 W).
+let polygon = [[29.813, -95.3749], [29.809, -95.3357], [29.769, -95.3423], [29.775, -95.3682]];
+let polyLayer = L.polygon(polygon, { color: "#1f5c9e", weight: 2, fillOpacity: 0.07 }).addTo(map);
+const compsLayer = L.layerGroup().addTo(map);
+let lotMarker = null;
 let drawing = false;
 let drawPoints = [];
 let drawLayer = null;
 
-document.getElementById('drawBtn').addEventListener('click', () => {
-  drawing = !drawing;
-  const btn = document.getElementById('drawBtn');
+// A circle around the lot, as a polygon the API can filter comps with.
+function circlePolygon(lat, lon, miles, points = 24) {
+  const dLat = miles / 69;
+  const dLon = miles / (69 * Math.cos((lat * Math.PI) / 180));
+  return Array.from({ length: points }, (_, i) => {
+    const a = (2 * Math.PI * i) / points;
+    return [lat + dLat * Math.sin(a), lon + dLon * Math.cos(a)];
+  });
+}
+
+function setLot(lat, lon) {
+  if (lotMarker) map.removeLayer(lotMarker);
+  lotMarker = L.marker([lat, lon]).addTo(map).bindPopup("Your lot").openPopup();
+  polygon = circlePolygon(lat, lon, Number($("radius").value) || 0.5);
+  if (polyLayer) map.removeLayer(polyLayer);
+  polyLayer = L.polygon(polygon, { color: "#1f5c9e", weight: 2, fillOpacity: 0.07 }).addTo(map);
+  $("lotHint").className = "note";
+  $("lotHint").textContent = `Lot set at ${lat.toFixed(5)}, ${lon.toFixed(5)} — comps within ${$("radius").value} miles.`;
+}
+
+map.on("click", (e) => {
   if (drawing) {
-    btn.classList.add('active');
-    btn.textContent = '✓ Click map to add points, click here when done';
+    drawPoints.push(e.latlng);
+    if (drawLayer) map.removeLayer(drawLayer);
+    drawLayer = L.layerGroup().addTo(map);
+    L.polyline(drawPoints, { color: "#9a6708", weight: 2, dashArray: "4,4" }).addTo(drawLayer);
+    drawPoints.forEach((p) => L.circleMarker(p, { radius: 4, color: "#9a6708" }).addTo(drawLayer));
+    return;
+  }
+  setLot(e.latlng.lat, e.latlng.lng);
+});
+
+$("radius").addEventListener("change", () => {
+  if (lotMarker) setLot(lotMarker.getLatLng().lat, lotMarker.getLatLng().lng);
+});
+
+$("drawBtn").addEventListener("click", () => {
+  drawing = !drawing;
+  if (drawing) {
     drawPoints = [];
     if (drawLayer) map.removeLayer(drawLayer);
-    if (polyLayer) map.removeLayer(polyLayer);
+    $("drawBtn").textContent = "Click the map to outline the area, then click here to finish";
   } else {
-    btn.classList.remove('active');
-    btn.textContent = '✎ Draw new polygon on map';
+    $("drawBtn").textContent = "Draw a custom area instead";
     if (drawPoints.length >= 3) {
-      polygon = drawPoints.map(p => [p.lat, p.lng]);
-      if (drawLayer) map.removeLayer(drawLayer);
-      polyLayer = L.polygon(polygon, { color: '#4f8cff', weight: 2, fillOpacity: 0.08 }).addTo(map);
-      document.getElementById('polyHint').textContent = `Custom polygon set (${polygon.length} points).`;
-    } else {
-      // not enough points, restore old polygon
-      if (drawLayer) map.removeLayer(drawLayer);
-      drawLayer = null;
-      polyLayer = L.polygon(polygon, { color: '#4f8cff', weight: 2, fillOpacity: 0.08 }).addTo(map);
-      document.getElementById('polyHint').textContent =
-        `Need at least 3 points (got ${drawPoints.length}) — kept the previous polygon.`;
+      polygon = drawPoints.map((p) => [p.lat, p.lng]);
+      if (polyLayer) map.removeLayer(polyLayer);
+      polyLayer = L.polygon(polygon, { color: "#1f5c9e", weight: 2, fillOpacity: 0.07 }).addTo(map);
+      $("lotHint").textContent = `Custom area set (${polygon.length} points).`;
     }
+    if (drawLayer) { map.removeLayer(drawLayer); drawLayer = null; }
   }
 });
 
-map.on('click', (e) => {
-  if (!drawing) return;
-  drawPoints.push(e.latlng);
-  if (drawLayer) map.removeLayer(drawLayer);
-  drawLayer = L.layerGroup().addTo(map);
-  L.polyline(drawPoints, { color: '#e0a13e', weight: 2, dashArray: '4,4' }).addTo(drawLayer);
-  drawPoints.forEach(p => L.circleMarker(p, { radius: 4, color: '#e0a13e' }).addTo(drawLayer));
+// ---------- floor plan upload ----------
+$("drop").addEventListener("click", () => $("planFile").click());
+$("planFile").addEventListener("change", async (e) => {
+  const f = e.target.files[0];
+  if (!f) return;
+  const dataUrl = await new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = (ev) => res(ev.target.result);
+    r.onerror = rej;
+    r.readAsDataURL(f);
+  });
+  if (f.type.startsWith("image/")) {
+    $("planImg").src = dataUrl;
+    $("planPreview").style.display = "block";
+  } else {
+    $("planPreview").style.display = "none";
+  }
+  $("planMsg").textContent = "Reading the plan…";
+  try {
+    const resp = await fetch("/api/parse-plan", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ file: dataUrl, mimeType: f.type }),
+    });
+    const data = await resp.json();
+    if (data.error) { $("planMsg").textContent = data.error + " Type the numbers below instead."; return; }
+    const p = data.plan;
+    if (p.livingAreaSqft) $("sqft").value = p.livingAreaSqft;
+    if (p.beds) $("beds").value = p.beds;
+    if (p.baths) $("baths").value = p.baths;
+    $("planMsg").textContent =
+      `Read from the plan (${p.confidence} confidence): ${p.livingAreaSqft ? p.livingAreaSqft.toLocaleString() + " sq ft" : "size not found"}` +
+      `${p.beds ? ", " + p.beds + " bed" : ""}${p.baths ? ", " + p.baths + " bath" : ""}. ` +
+      `${p.notes || ""} Please check these before you rely on them.`;
+  } catch (err) {
+    $("planMsg").textContent = "Could not read the plan automatically — type the numbers below.";
+  }
 });
 
-async function checkSource() {
-  // Lightweight ping: analyze with the current polygon just to read dataSource back.
-  // (Kept silent — no results rendered from this call.)
-}
-
-function fmtMoney(n) {
-  if (n == null || isNaN(n)) return '—';
-  return '$' + Math.round(n).toLocaleString();
+// ---------- analyze ----------
+function requestBody() {
+  const salePrice = $("salePrice").value;
+  return {
+    polygon,
+    plan: { livingAreaSqft: Number($("sqft").value), beds: Number($("beds").value), baths: Number($("baths").value) },
+    costs: {
+      constructionCostPerSqft: Number($("constCost").value),
+      sellingCostPct: Number($("sellPct").value) / 100,
+      targetMarginPct: Number($("marginPct").value) / 100,
+      siteDevCost: Number($("cityFees").value),
+    },
+    specCosts: {
+      softCostPct: Number($("softPct").value) / 100,
+      contingencyPct: Number($("contPct").value) / 100,
+      cityFees: Number($("cityFees").value),
+      buildersRisk: Number($("buildersRisk").value),
+      months: Number($("months").value),
+      loanRatePct: Number($("loanRate").value) / 100,
+      loanToCostPct: Number($("ltc").value) / 100,
+      propertyTaxPct: Number($("taxPct").value) / 100,
+    },
+    lotPrice: Number($("lotPrice").value),
+    salePrice: salePrice === "" ? null : Number(salePrice),
+  };
 }
 
 async function analyze() {
-  const btn = document.getElementById('analyzeBtn');
+  const btn = $("analyzeBtn");
   btn.disabled = true;
-  btn.textContent = 'Analyzing…';
-
-  const body = {
-    polygon,
-    plan: {
-      livingAreaSqft: Number(document.getElementById('sqft').value),
-      beds: Number(document.getElementById('beds').value),
-      baths: Number(document.getElementById('baths').value),
-    },
-    costs: {
-      constructionCostPerSqft: Number(document.getElementById('constCost').value),
-      sellingCostPct: Number(document.getElementById('sellPct').value) / 100,
-      targetMarginPct: Number(document.getElementById('marginPct').value) / 100,
-      siteDevCost: Number(document.getElementById('siteDev').value),
-    },
-  };
-
-  const splitPrice = document.getElementById('splitPrice').value;
-  const splitSqft = document.getElementById('splitSqft').value;
-  if (splitPrice && splitSqft) {
-    body.splitScenario = {
-      totalLotPrice: Number(splitPrice),
-      totalLotSqft: Number(splitSqft),
-      nSplits: Number(document.getElementById('splitN').value || 2),
-    };
-  }
-
+  btn.textContent = "Checking…";
   try {
-    const resp = await fetch('/api/analyze', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
+    const resp = await fetch("/api/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(requestBody()),
     });
-    const data = await resp.json();
-    render(data);
+    render(await resp.json());
   } catch (err) {
-    document.getElementById('results').innerHTML = `<div class="err">Request failed: ${err}</div>`;
+    $("results").innerHTML = `<div class="note bad">Could not reach the server: ${err}</div>`;
   } finally {
     btn.disabled = false;
-    btn.textContent = 'Analyze';
+    btn.textContent = "Check this deal";
   }
 }
 
+function row(label, value, cls) {
+  return `<tr class="${cls || ""}"><td>${label}</td><td class="r">${value}</td></tr>`;
+}
+
 function render(data) {
-  const badge = document.getElementById('sourceBadge');
-  if (data.dataSource === 'live') {
-    badge.textContent = '● Live HAR data';
-    badge.className = 'badge live';
-  } else {
-    badge.textContent = '● Mock data (no HAR_API_KEY set)';
-    badge.className = 'badge mock';
-  }
+  const badge = $("sourceBadge");
+  if (data.dataSource === "live") { badge.textContent = "Live MLS comps"; badge.className = "badge live"; }
+  else { badge.textContent = "Sample data (no MLS key set)"; badge.className = "badge mock"; }
 
   compsLayer.clearLayers();
-  (data.compsPoints || []).forEach(p => {
+  (data.compsPoints || []).forEach((p) => {
     if (p.lat == null || p.lon == null) return;
-    L.circleMarker([p.lat, p.lon], {
-      radius: 5, color: '#4f8cff', fillColor: '#4f8cff', fillOpacity: 0.7, weight: 1,
-    }).bindPopup(`${fmtMoney(p.price)} · ${p.sqft} sqft · $${p.ppsf}/sqft`).addTo(compsLayer);
+    L.circleMarker([p.lat, p.lon], { radius: 5, color: "#1f5c9e", fillColor: "#1f5c9e", fillOpacity: 0.7, weight: 1 })
+      .bindPopup(`${money(p.price)} · ${p.sqft} sq ft · $${p.ppsf}/sq ft`)
+      .addTo(compsLayer);
   });
 
-  const el = document.getElementById('results');
-  if (data.error) {
-    el.innerHTML = `<div class="err">${data.error}</div>`;
+  const el = $("results");
+  const d = data.deal;
+  if (!d) {
+    el.innerHTML = `<div class="note bad">${data.error || "Enter a lot price and plan size to check the deal."}</div>`;
     return;
   }
 
-  const r = data.result;
-  const s = data.sensitivity;
+  const cls = { go: "v-go", thin: "v-thin", no: "v-no" }[d.verdict];
+  const head = { go: "This deal works", thin: "Thin — be careful", no: "Do not buy this lot" }[d.verdict];
+  const marginTxt = (d.marginPct * 100).toFixed(1) + "%";
+  const msg =
+    d.verdict === "go"
+      ? `You clear ${money(d.profit)} — ${marginTxt} on cost.`
+      : d.verdict === "thin"
+      ? `You only make ${money(d.profit)} (${marginTxt}). One delay or overrun wipes that out. Pay no more than ${money(d.maxLotPrice)} for the lot.`
+      : `You lose ${money(-d.profit)} at this lot price. The lot has to cost ${money(d.maxLotPrice)} or less.`;
+
+  const li = d.lineItems;
   let html = `
-    <div class="kv"><span class="k">Sold / Pending / Active in polygon</span><span>${data.counts.sold} / ${data.counts.pending} / ${data.counts.active}</span></div>
-    <div class="kv"><span class="k">Comps used (filtered)</span><span>${data.comps.n}</span></div>
-    <div class="kv"><span class="k">Median $/sqft</span><span>$${Math.round(data.comps.medianPricePerSqft || 0)}</span></div>
-
-    <div class="headline">
-      <div class="num">${fmtMoney(r.maxLandPrice)}</div>
-      <div class="lbl">MAX LAND PRICE (base case)</div>
+    <div class="verdict ${cls}"><h3>${head}</h3><p>${msg}</p></div>
+    <div class="big">
+      <div><div class="k">Profit</div><div class="v ${d.profit >= 0 ? "pos" : "neg"}">${money(d.profit)}</div></div>
+      <div><div class="k">Margin on cost</div><div class="v ${d.profit >= 0 ? "pos" : "neg"}">${marginTxt}</div></div>
+    </div>
+    <div class="big">
+      <div><div class="k">Most to pay for the lot</div><div class="v ${d.maxLotPrice >= li.lot ? "pos" : "neg"}">${money(d.maxLotPrice)}</div></div>
+      <div><div class="k">Break-even sale price</div><div class="v">${money(d.breakEvenSalePrice)}</div></div>
     </div>
 
-    <div class="kv"><span class="k">Estimated ARV</span><span>${fmtMoney(r.arv)}</span></div>
-    <div class="kv"><span class="k">Construction cost</span><span>${fmtMoney(r.constructionCost)}</span></div>
-    <div class="kv"><span class="k">Selling costs</span><span>${fmtMoney(r.sellingCost)}</span></div>
-    <div class="kv"><span class="k">Target profit</span><span>${fmtMoney(r.targetProfit)}</span></div>
-    <div class="kv"><span class="k">Site dev / permits</span><span>${fmtMoney(r.siteDevCost)}</span></div>
+    <h4>Where the money goes</h4>
+    <table>
+      ${row("Lot", money(li.lot))}
+      ${row(`Build — ${d.sqft.toLocaleString()} sq ft`, money(li.hardCost))}
+      ${row("Contingency", money(li.contingency), "sub")}
+      ${row("Design, engineering", money(li.softCost), "sub")}
+      ${row("Permits, survey, taps", money(li.cityFees), "sub")}
+      ${row("Builder's risk insurance", money(li.buildersRisk), "sub")}
+      ${row(`Property tax (${d.monthsToExit} mo)`, money(li.propertyTax), "sub")}
+      ${row("Loan interest", money(li.loanInterest), "sub")}
+      ${row("<strong>Total cost</strong>", "<strong>" + money(d.totalCost) + "</strong>", "total")}
+      ${row(`Sale price${d.salePriceSource === "comps" ? " (from comps)" : ""}`, money(d.salePrice))}
+      ${row("Commission + closing", "−" + money(d.sellingCost), "sub")}
+      ${row("<strong>Profit</strong>", `<strong class="${d.profit >= 0 ? "pos" : "neg"}">${money(d.profit)}</strong>`, "total")}
+    </table>`;
 
-    <div class="sens">
-      <div><div class="n">${fmtMoney(s.conservative.maxLandPrice)}</div><div class="l">CONSERVATIVE</div></div>
-      <div><div class="n">${fmtMoney(s.optimistic.maxLandPrice)}</div><div class="l">OPTIMISTIC</div></div>
-    </div>
-  `;
-
-  if (data.split) {
-    const sp = data.split;
+  if (d.compSupport) {
+    const cs = d.compSupport;
     html += `
-      <fieldset style="margin-top:14px;">
-        <legend>Split-lot result</legend>
-        <div class="kv"><span class="k">Price per lot (÷${sp.nSplits})</span><span>${fmtMoney(sp.perLotPrice)}</span></div>
-        <div class="kv"><span class="k">Max land price per lot</span><span>${fmtMoney(sp.maxLandPricePerLot)}</span></div>
-        <div class="kv"><span class="k">Profitable?</span><span style="color:${sp.profitable ? '#38c172' : '#e0554e'}">${sp.profitable ? 'Yes' : 'No'} (${fmtMoney(sp.marginVsMax)})</span></div>
-      </fieldset>
-    `;
+      <h4>Reality check against sold homes</h4>
+      <table>
+        ${row("Your price per sq ft", money(d.salePricePerSqft))}
+        ${row(`What ${cs.n} nearby sales got`, money(cs.ppsfLow) + "–" + money(cs.ppsfHigh) + "/sq ft")}
+        ${row("Value those comps support", money(cs.valueLow) + "–" + money(cs.valueHigh))}
+        ${row("Your all-in cost per sq ft", money(d.allInCostPerSqft))}
+        ${row("Lot as share of sale price", Math.round(d.lotShareOfSalePct * 100) + "%")}
+        ${row("Size needed for your price", cs.sqftNeededForSalePrice.toLocaleString() + " sq ft")}
+      </table>`;
+  }
+
+  (d.warnings || []).forEach((w) => { html += `<div class="note warn">${w}</div>`; });
+
+  if (data.result) {
+    html += `<details><summary>Land-residual view (max land price from comps)</summary>
+      <table>
+        ${row("Comp-based value of the finished house", money(data.result.arv))}
+        ${row("Max land price (base case)", money(data.result.maxLandPrice))}
+        ${row("Conservative", money(data.sensitivity.conservative.maxLandPrice), "sub")}
+        ${row("Optimistic", money(data.sensitivity.optimistic.maxLandPrice), "sub")}
+      </table></details>`;
   }
 
   el.innerHTML = html;
 }
 
-document.getElementById('analyzeBtn').addEventListener('click', analyze);
-
-// Run once on load with the default polygon so there's something to look at.
+$("analyzeBtn").addEventListener("click", analyze);
 analyze();
 </script>
 </body>
