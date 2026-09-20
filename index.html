@@ -150,7 +150,7 @@
         </div>
         <div class="row">
           <div><label for="contPct">Contingency <span class="sm">% of build</span></label><input type="number" id="contPct" value="7"></div>
-          <div><label for="marginPct">Profit I want <span class="sm">% of cost</span></label><input type="number" id="marginPct" value="15"></div>
+          <div><label for="marginPct">Profit I want <span class="sm">% of money spent</span></label><input type="number" id="marginPct" value="15"></div>
         </div>
         <div class="row">
           <div><label for="taxPct">Property tax <span class="sm">% / year</span></label><input type="number" id="taxPct" value="2.21" step="0.01"></div>
@@ -392,7 +392,7 @@ function render(data) {
   const marginTxt = (d.marginPct * 100).toFixed(1) + "%";
   const msg =
     d.verdict === "go"
-      ? `You clear ${money(d.profit)} — ${marginTxt} on cost.`
+      ? `You clear ${money(d.profit)} — ${marginTxt} of everything you spend.`
       : d.verdict === "thin"
       ? `You only make ${money(d.profit)} (${marginTxt}). One delay or overrun wipes that out. Pay no more than ${money(d.maxLotPrice)} for the lot.`
       : `You lose ${money(-d.profit)} at this lot price. The lot has to cost ${money(d.maxLotPrice)} or less.`;
@@ -402,7 +402,7 @@ function render(data) {
     <div class="verdict ${cls}"><h3>${head}</h3><p>${msg}</p></div>
     <div class="big">
       <div><div class="k">Profit</div><div class="v ${d.profit >= 0 ? "pos" : "neg"}">${money(d.profit)}</div></div>
-      <div><div class="k">Margin on cost</div><div class="v ${d.profit >= 0 ? "pos" : "neg"}">${marginTxt}</div></div>
+      <div><div class="k">Margin on money spent</div><div class="v ${d.profit >= 0 ? "pos" : "neg"}">${marginTxt}</div></div>
     </div>
     <div class="big">
       <div><div class="k">Most to pay for the lot</div><div class="v ${d.maxLotPrice >= li.lot ? "pos" : "neg"}">${money(d.maxLotPrice)}</div></div>
@@ -422,6 +422,7 @@ function render(data) {
       ${row("<strong>Total cost</strong>", "<strong>" + money(d.totalCost) + "</strong>", "total")}
       ${row(`Sale price${d.salePriceSource === "comps" ? " (from comps)" : ""}`, money(d.salePrice))}
       ${row("Commission + closing", "−" + money(d.sellingCost), "sub")}
+      ${row("<strong>All in, with commission</strong>", "<strong>" + money(d.allInCost) + "</strong>", "total")}
       ${row("<strong>Profit</strong>", `<strong class="${d.profit >= 0 ? "pos" : "neg"}">${money(d.profit)}</strong>`, "total")}
     </table>`;
 
