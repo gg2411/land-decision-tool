@@ -2,6 +2,10 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const handler = require("../api/analyze");
 
+// Tests exercise the deterministic mock path regardless of local credentials.
+delete process.env.REPLIERS_API_KEY;
+delete process.env.HAR_API_KEY;
+
 const SQUARE = [
   [29.75, -95.4],
   [29.76, -95.4],
