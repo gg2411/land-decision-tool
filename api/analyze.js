@@ -307,6 +307,10 @@ module.exports = async (req, res) => {
       soldDate: l.soldDate,
       listDate: l.listDate,
       listingKey: l.listingKey,
+      city: l.city,
+      lotSizeSqft: l.lotSizeSqft,
+      listPrice: l.listPrice,
+      closePrice: l.closePrice,
       used: status === "sold" && usedSet.has(l.listingKey),
     });
 
