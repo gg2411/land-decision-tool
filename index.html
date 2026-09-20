@@ -283,7 +283,7 @@ function escapeHtml(s) {
 }
 
 function fmtDate(s) {
-  return s ? String(s).slice(0, 10) : '—';
+  return s ? escapeHtml(String(s).slice(0, 10)) : '—';
 }
 
 function saveState() {
@@ -377,9 +377,9 @@ async function analyze() {
 function pointPopup(p) {
   const lines = [
     p.address ? `<b>${escapeHtml(p.address)}</b>` : null,
-    `${fmtMoney(p.price)} · ${p.sqft} sqft · $${p.ppsf}/sqft`,
-    `${p.beds ?? '—'} bd / ${p.baths ?? '—'} ba · built ${p.yearBuilt ?? '—'}`,
-    `Status: ${p.status}`,
+    `${fmtMoney(p.price)} · ${escapeHtml(String(p.sqft ?? '—'))} sqft · $${escapeHtml(String(p.ppsf ?? '—'))}/sqft`,
+    `${escapeHtml(String(p.beds ?? '—'))} bd / ${escapeHtml(String(p.baths ?? '—'))} ba · built ${escapeHtml(String(p.yearBuilt ?? '—'))}`,
+    `Status: ${escapeHtml(String(p.status ?? '—'))}`,
     p.soldDate ? `Sold: ${fmtDate(p.soldDate)}` : (p.listDate ? `Listed: ${fmtDate(p.listDate)}` : null),
   ].filter(Boolean);
   return lines.join('<br>');
@@ -400,6 +400,9 @@ function render(data) {
   } else if (data.dataSource === 'hcad') {
     badge.textContent = '● HCAD public records (no MLS coverage here)';
     badge.className = 'badge hcad';
+  } else if (data.dataSource === 'live-empty') {
+    badge.textContent = '● Live MLS feed — no listings here';
+    badge.className = 'badge mock';
   } else {
     badge.textContent = '● Mock data (no REPLIERS_API_KEY set)';
     badge.className = 'badge mock';
@@ -418,8 +421,8 @@ function render(data) {
       radius: 3, color: '#b48cff', fillColor: '#b48cff', fillOpacity: p.vacant ? 0.9 : 0.35, weight: 1,
     }).bindPopup([
       p.address ? `<b>${escapeHtml(p.address)}</b>` : null,
-      p.neighborhood ? escapeHtml(p.neighborhood) : null,
-      `Land ${fmtMoney(p.landValue)} ($${p.landPpsf ?? '—'}/sqft) · lot ${p.lotSqft ?? '—'} sqft`,
+      p.neighborhood ? escapeHtml(String(p.neighborhood)) : null,
+      `Land ${fmtMoney(p.landValue)} ($${escapeHtml(String(p.landPpsf ?? '—'))}/sqft) · lot ${escapeHtml(String(p.lotSqft ?? '—'))} sqft`,
       `Market value ${fmtMoney(p.marketValue)}`,
       p.transferDate ? `Transferred ${fmtDate(p.transferDate)}` : null,
       p.vacant ? 'Vacant lot' : null,
@@ -502,6 +505,9 @@ function render(data) {
     } else if (!h.n) {
       html += `<div class="kv"><span class="k">No eligible parcels</span></div>`;
     } else {
+      if (h.truncated) {
+        html += `<div class="hint">Parcel set truncated (dense polygon) — draw a smaller area for an exact benchmark.</div>`;
+      }
       html += `
         <div class="kv"><span class="k">Median land value</span><span>$${h.medianLandValuePerSqft}/sqft</span></div>
         <div class="kv"><span class="k">Range (25th–75th pct)</span><span>$${h.landPpsfLow}–$${h.landPpsfHigh}/sqft</span></div>
@@ -529,7 +535,7 @@ function render(data) {
         <table id="compsTable">
           <thead><tr><th>Address</th><th>Price</th><th>Sqft</th><th>$/sqft</th><th>Yr</th><th>Sold</th></tr></thead>
           <tbody>
-            ${usedComps.map(p => `<tr data-key="${escapeHtml(p.listingKey || '')}"><td>${escapeHtml(p.address || '—')}</td><td>${fmtMoney(p.price)}</td><td>${p.sqft ?? '—'}</td><td>${p.ppsf != null ? '$' + p.ppsf : '—'}</td><td>${p.yearBuilt ?? '—'}</td><td>${fmtDate(p.soldDate)}</td></tr>`).join('')}
+            ${usedComps.map(p => `<tr data-key="${escapeHtml(String(p.listingKey || ''))}"><td>${escapeHtml(String(p.address || '—'))}</td><td>${fmtMoney(p.price)}</td><td>${escapeHtml(String(p.sqft ?? '—'))}</td><td>${p.ppsf != null ? '$' + escapeHtml(String(p.ppsf)) : '—'}</td><td>${escapeHtml(String(p.yearBuilt ?? '—'))}</td><td>${fmtDate(p.soldDate)}</td></tr>`).join('')}
           </tbody>
         </table>
       </details>

@@ -105,6 +105,16 @@ test("summarizeLandValues falls back to all parcels and excludes bad lots", () =
   assert.deepEqual(s.usedAccts.sort(), ["c", "d", "f"]);
 });
 
+test("summarizeLandValues soldWithinMonths null = no window", () => {
+  const now = new Date("2026-09-01T00:00:00Z");
+  const parcels = Array.from({ length: 6 }, (_, i) =>
+    parcel({ acct: `P${i}`, landValuePerSqft: 100 + i, transferDate: i < 5 ? "2026-06-01" : "2010-01-01" })
+  );
+  const s = summarizeLandValues(parcels, { soldWithinMonths: null, now });
+  assert.equal(s.basis, "all-parcels");
+  assert.equal(s.n, 6);
+});
+
 test("summarizeLandValues n=0 when nothing eligible", () => {
   const s = summarizeLandValues([parcel({ landValuePerSqft: null }), parcel({ lotSizeSqft: 100 })], {});
   assert.equal(s.n, 0);

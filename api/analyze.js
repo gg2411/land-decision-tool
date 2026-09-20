@@ -46,7 +46,7 @@ module.exports = async (req, res) => {
     };
     const cf = body.compsFilter || {};
     const rawSoldMonths = cf.soldWithinMonths ?? 12;
-    const soldWithinMonths = rawSoldMonths ? Number(rawSoldMonths) : undefined; // 0/blank = no limit
+    const soldWithinMonths = rawSoldMonths ? Number(rawSoldMonths) : null; // explicit 0/blank = no limit
     const compsFilter = {
       minSqft: cf.minSqft ?? plan.livingAreaSqft * 0.8,
       maxSqft: cf.maxSqft ?? plan.livingAreaSqft * 1.2,
@@ -91,18 +91,16 @@ module.exports = async (req, res) => {
     const activeInPoly = filterToPolygon(data.active, polygon);
 
     // The connected Repliers feed has multi-state sample coverage with almost
-    // no Houston listings; when it comes back empty, fall back to HCAD public
+    // no Houston listings; when it comes back empty we try HCAD public
     // records (land-value benchmark) as the real data source.
-    if (dataSource === "live" && !soldInPoly.length && !pendingInPoly.length && !activeInPoly.length) {
-      dataSource = "hcad";
-    }
+    const liveEmpty =
+      dataSource === "live" && !soldInPoly.length && !pendingInPoly.length && !activeInPoly.length;
 
     const comps = summarizeComps(soldInPoly, compsFilter);
     const ppsfOverride = arvPpsfOverride || undefined;
 
     let result = null;
     let sensitivity = null;
-    let error = null;
     if (comps.n > 0 || ppsfOverride) {
       result = computeMaxLandPrice(plan, comps, costs, ppsfOverride);
       sensitivity = ppsfOverride
@@ -114,11 +112,6 @@ module.exports = async (req, res) => {
             conservative: computeMaxLandPrice(plan, comps, costs, comps.ppsfLow),
             optimistic: computeMaxLandPrice(plan, comps, costs, comps.ppsfHigh),
           };
-    } else {
-      error =
-        dataSource === "hcad"
-          ? "No MLS listings in this polygon from the connected Repliers feed. Showing HCAD public records instead — enter an ARV $/sqft override to run the residual."
-          : "No comps matched the filters inside this polygon — widen the polygon or the size/bed filters.";
     }
 
     let asking = null;
@@ -143,9 +136,9 @@ module.exports = async (req, res) => {
     let hcadPoints = [];
     if (!process.env.LDT_SKIP_HCAD && withinHarris(polygon)) {
       try {
-        const parcels = await fetchHcadParcels(polygon);
+        const { parcels, truncated } = await fetchHcadParcels(polygon);
         const summary = summarizeLandValues(parcels, { soldWithinMonths });
-        hcad = { ...summary };
+        hcad = { ...summary, truncated };
         if (lotAskingPrice && lotSqft && summary.medianLandValuePerSqft) {
           hcad.asking = {
             askingPerSqft: round2(lotAskingPrice / lotSqft),
@@ -171,6 +164,17 @@ module.exports = async (req, res) => {
       } catch (err) {
         hcad = { error: String(err.message || err) };
       }
+    }
+
+    if (liveEmpty) dataSource = hcad && !hcad.error ? "hcad" : "live-empty";
+    let error = null;
+    if (!result) {
+      error =
+        dataSource === "hcad"
+          ? "No MLS listings in this polygon from the connected Repliers feed. Showing HCAD public records instead — enter an ARV $/sqft override to run the residual."
+          : dataSource === "live-empty"
+            ? "No MLS listings in this polygon from the connected Repliers feed (and no HCAD coverage here)."
+            : "No comps matched the filters inside this polygon — widen the polygon or the size/bed filters.";
     }
 
     const usedSet = new Set(comps.usedKeys || []);

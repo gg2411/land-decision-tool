@@ -15,7 +15,14 @@ const server = http.createServer((req, res) => {
   }
   if (url === "/api/analyze") {
     let raw = "";
-    req.on("data", (c) => (raw += c));
+    req.on("data", (c) => {
+      raw += c;
+      if (raw.length > 1_000_000) {
+        res.writeHead(413, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "payload too large" }));
+        req.destroy();
+      }
+    });
     req.on("end", async () => {
       try {
         req.body = raw ? JSON.parse(raw) : {};
