@@ -57,11 +57,11 @@ test("a malformed plan value falls back to the default instead of erroring", asy
 test("out-of-range percentages are rejected", async () => {
   const r = await call({ ...valid, specCosts: { loanRatePct: 8.5 } }); // sent as 850%, not 0.085
   assert.equal(r.status, 400);
-  assert.match(r.payload.error, /loanRatePct/);
+  assert.match(r.payload.error, /"Loan rate" must be between/);
 });
 
 test("a negative fixed cost is rejected", async () => {
   const r = await call({ ...valid, specCosts: { cityFees: -1000 } });
   assert.equal(r.status, 400);
-  assert.match(r.payload.error, /cityFees/);
+  assert.match(r.payload.error, /"Permits, survey, taps" must be zero or more/);
 });

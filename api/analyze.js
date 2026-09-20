@@ -25,6 +25,21 @@ const PCT_RANGE = {
   propertyTaxPct: [0, 0.2],
 };
 
+// The person using this is a builder, not the author of the request body, so an
+// error has to name the field the way the screen does.
+const FIELD_LABEL = {
+  cityFees: "Permits, survey, taps",
+  buildersRisk: "Builder's risk insurance",
+  months: "Months lot to sale",
+  sellingCostPct: "Commission + closing",
+  targetMarginPct: "Profit I want",
+  softCostPct: "Design + engineering",
+  contingencyPct: "Contingency",
+  loanRatePct: "Loan rate",
+  loanToCostPct: "Loan covers",
+  propertyTaxPct: "Property tax",
+};
+
 function validationError({ plan, costs, specCosts, lotPrice, salePrice }) {
   if (!Number.isFinite(plan.livingAreaSqft) || plan.livingAreaSqft <= 0) {
     return "Enter the size of the house in square feet.";
@@ -40,13 +55,13 @@ function validationError({ plan, costs, specCosts, lotPrice, salePrice }) {
   }
   for (const key of ["cityFees", "buildersRisk", "months"]) {
     if (!Number.isFinite(specCosts[key]) || specCosts[key] < 0) {
-      return `${key} must be zero or more.`;
+      return `"${FIELD_LABEL[key]}" must be zero or more.`;
     }
   }
   for (const [key, [lo, hi]] of Object.entries(PCT_RANGE)) {
     const v = specCosts[key];
     if (!Number.isFinite(v) || v < lo || v > hi) {
-      return `${key} must be between ${lo * 100}% and ${hi * 100}%.`;
+      return `"${FIELD_LABEL[key]}" must be between ${lo * 100}% and ${hi * 100}%.`;
     }
   }
   return null;

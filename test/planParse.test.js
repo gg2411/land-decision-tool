@@ -71,6 +71,13 @@ test("extractPlan explains itself when no model is configured", async () => {
   await assert.rejects(() => extractPlan({ fileDataUrl: tinyPng }, {}), /No vision model is configured/);
 });
 
+test("an unreadable file is rejected even with no model configured", async () => {
+  await assert.rejects(
+    () => extractPlan({ fileDataUrl: "data:image/png;base64,PHNjcmlwdD4=" }, {}),
+    /not a readable/
+  );
+});
+
 test("extractPlan posts the image to the model and normalizes the answer", async () => {
   let seen = null;
   const fakeFetch = async (url, opts) => {
