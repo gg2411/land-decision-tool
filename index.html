@@ -85,6 +85,28 @@
   #analyzeBtn { background: var(--accent); color: white; width: 100%; margin-top: 4px; }
   #analyzeBtn:disabled { opacity: 0.5; cursor: not-allowed; }
   #results { margin-top: 16px; }
+  #deal { margin-top: 16px; }
+  .mini {
+    background: var(--panel-2);
+    border: 1px solid var(--accent);
+    border-radius: 5px;
+    color: var(--accent);
+    padding: 4px 7px;
+    font-size: 11px;
+    margin-top: 6px;
+  }
+  .deal-card {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px;
+  }
+  .deal-card h2 { font-size: 15px; margin: 0 0 8px; }
+  .deal-address { color: var(--text); font-size: 13px; margin-bottom: 8px; }
+  .src { padding-left: 18px; margin: 8px 0 0; }
+  .src li { margin: 8px 0; font-size: 12px; line-height: 1.4; }
+  .src a { color: var(--accent); }
+  .src .snippet { color: var(--muted); display: block; margin-top: 2px; }
   .kv { display: flex; justify-content: space-between; font-size: 13px; padding: 3px 0; }
   .kv .k { color: var(--muted); }
   .headline {
@@ -188,6 +210,7 @@
     <div class="hint" id="polyHint">Using a default sample polygon. Click "Draw new polygon" to pick your own area.</div>
 
     <div id="results"></div>
+    <div id="deal"></div>
   </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
@@ -213,6 +236,9 @@ let drawPoints = [];
 let drawLayer = null;
 let prevPolygon = null;
 let markersByKey = {};
+let compsByKey = {};
+let lastDataSource = 'mock';
+let dealRequestId = 0;
 
 const INPUT_IDS = ['sqft', 'beds', 'baths', 'constCost', 'sellPct', 'marginPct', 'siteDev',
   'sqftTol', 'minBeds', 'soldMonths', 'minYear', 'arvPpsf', 'askPrice', 'lotSqft', 'splitPrice', 'splitSqft', 'splitN'];
@@ -382,6 +408,11 @@ function pointPopup(p) {
     `Status: ${escapeHtml(String(p.status ?? '—'))}`,
     p.soldDate ? `Sold: ${fmtDate(p.soldDate)}` : (p.listDate ? `Listed: ${fmtDate(p.listDate)}` : null),
   ].filter(Boolean);
+  if (lastDataSource !== 'mock' && p.listingKey) {
+    lines.push(`<button class="mini" onclick="deepDive('${escapeHtml(String(p.listingKey))}')">Deep dive</button>`);
+  } else if (lastDataSource === 'mock') {
+    lines.push('<span class="hint">Deep dive needs live MLS data</span>');
+  }
   return lines.join('<br>');
 }
 
@@ -393,6 +424,7 @@ function pointStyle(p) {
 }
 
 function render(data) {
+  lastDataSource = data.dataSource;
   const badge = document.getElementById('sourceBadge');
   if (data.dataSource === 'live') {
     badge.textContent = '● Live MLS data (Repliers)';
@@ -410,10 +442,16 @@ function render(data) {
 
   compsLayer.clearLayers();
   markersByKey = {};
+  compsByKey = {};
+  dealRequestId++;
+  document.getElementById('deal').innerHTML = '';
   (data.compsPoints || []).forEach(p => {
     if (p.lat == null || p.lon == null) return;
     const m = L.circleMarker([p.lat, p.lon], pointStyle(p)).bindPopup(pointPopup(p)).addTo(compsLayer);
-    if (p.listingKey) markersByKey[p.listingKey] = m;
+    if (p.listingKey) {
+      markersByKey[p.listingKey] = m;
+      compsByKey[p.listingKey] = p;
+    }
   });
   (data.hcadPoints || []).forEach(p => {
     if (p.lat == null || p.lon == null) return;
@@ -590,6 +628,67 @@ function render(data) {
       if (m) { map.panTo(m.getLatLng()); m.openPopup(); }
     });
   });
+}
+
+async function deepDive(key) {
+  const reqId = ++dealRequestId;
+  const point = compsByKey[key];
+  if (!point) return;
+  const deal = document.getElementById('deal');
+  const address = [point.address, point.city].filter(Boolean).join(', ') || 'Address unavailable';
+  const detail = [
+    ['Price', fmtMoney(point.price)],
+    ['Sqft', point.sqft],
+    ['Beds', point.beds],
+    ['Baths', point.baths],
+    ['Year built', point.yearBuilt],
+    ['Lot', point.lotSizeSqft == null ? '—' : `${Number(point.lotSizeSqft).toLocaleString()} sqft`],
+  ];
+  deal.innerHTML = `
+    <div class="deal-card">
+      <h2>Deal deep-dive</h2>
+      <div class="deal-address">${escapeHtml(address)}</div>
+      ${detail.map(([label, value]) => `<div class="kv"><span class="k">${escapeHtml(label)}</span><span>${escapeHtml(value == null ? '—' : value)}</span></div>`).join('')}
+      <div class="hint">Researching this deal…</div>
+    </div>
+  `;
+
+  const fields = [
+    'address', 'city', 'price', 'sqft', 'beds', 'baths', 'yearBuilt',
+    'listPrice', 'closePrice', 'lotSizeSqft',
+  ];
+  const listing = { listingKey: key };
+  fields.forEach(field => {
+    if (Object.prototype.hasOwnProperty.call(point, field)) listing[field] = point[field];
+  });
+
+  try {
+    const resp = await fetch('/api/deal', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(listing),
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || `Request failed (${resp.status})`);
+    if (reqId !== dealRequestId) return;
+    const sources = (data.results || []).map(source => {
+      const date = source.published_date ? ` · ${escapeHtml(source.published_date)}` : '';
+      return `<li><a href="${escapeHtml(source.url)}" target="_blank" rel="noopener">${escapeHtml(source.title || source.url)}</a>${date}<span class="snippet">${escapeHtml(source.content)}</span></li>`;
+    }).join('');
+    deal.innerHTML = `
+      <div class="deal-card">
+        <h2>Deal deep-dive</h2>
+        <div class="deal-address">${escapeHtml(data.address || address)}</div>
+        ${detail.map(([label, value]) => `<div class="kv"><span class="k">${escapeHtml(label)}</span><span>${escapeHtml(value == null ? '—' : value)}</span></div>`).join('')}
+        <p>${escapeHtml(data.summary || 'No summary available')}</p>
+        <strong>Sources</strong>
+        ${sources ? `<ul class="src">${sources}</ul>` : '<div class="hint">No sources found.</div>'}
+      </div>
+    `;
+  } catch (err) {
+    if (reqId !== dealRequestId) return;
+    deal.innerHTML = `<div class="err">${escapeHtml(err.message || err)}</div>`;
+  }
 }
 
 document.getElementById('analyzeBtn').addEventListener('click', analyze);
