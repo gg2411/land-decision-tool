@@ -16,6 +16,7 @@ test("margin is profit over everything spent, commission included", () => {
   const p = specProForma(base);
   assert.equal(p.allInCost, Math.round((p.totalCost + p.sellingCost) * 100) / 100);
   assert.ok(Math.abs(p.marginPct - p.profit / p.allInCost) < 1e-4, `margin ${p.marginPct}`);
+  assert.ok(Math.abs(p.allInCostPerSqft - p.allInCost / p.sqft) < 0.01, `per sqft ${p.allInCostPerSqft}`);
 });
 
 test("the Houston base case does not pencil at the median 77009 lot price", () => {
