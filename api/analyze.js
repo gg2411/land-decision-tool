@@ -2,6 +2,7 @@ const {
   filterToPolygon,
   summarizeComps,
   computeMaxLandPrice,
+  impliedMargin,
   splitLotScenario,
   mockDataset,
   fetchAllStatuses,
@@ -27,12 +28,18 @@ module.exports = async (req, res) => {
       targetMarginPct: Number(body.costs?.targetMarginPct ?? 0.15),
       siteDevCost: Number(body.costs?.siteDevCost ?? 35000),
     };
+    const cf = body.compsFilter || {};
+    const rawSoldMonths = cf.soldWithinMonths ?? 12;
+    const soldWithinMonths = rawSoldMonths ? Number(rawSoldMonths) : undefined; // 0/blank = no limit
     const compsFilter = {
-      minSqft: body.compsFilter?.minSqft ?? plan.livingAreaSqft * 0.8,
-      maxSqft: body.compsFilter?.maxSqft ?? plan.livingAreaSqft * 1.2,
-      minBeds: body.compsFilter?.minBeds ?? 3,
+      minSqft: cf.minSqft ?? plan.livingAreaSqft * 0.8,
+      maxSqft: cf.maxSqft ?? plan.livingAreaSqft * 1.2,
+      minBeds: cf.minBeds ?? 3,
+      minYearBuilt: cf.minYearBuilt ? Number(cf.minYearBuilt) : undefined,
+      soldWithinMonths,
     };
     const splitScenario = body.splitScenario; // optional { totalLotPrice, totalLotSqft, nSplits }
+    const lotAskingPrice = Number(body.lotAskingPrice) > 0 ? Number(body.lotAskingPrice) : null;
 
     if (!polygon || !Array.isArray(polygon) || polygon.length < 3) {
       res.status(400).json({ error: "polygon must be an array of at least 3 [lat, lon] pairs" });
@@ -48,10 +55,14 @@ module.exports = async (req, res) => {
       dataSource = "live";
       // Repliers supports polygon filtering natively, so we pass the exact
       // drawn polygon (not a bounding box) straight through.
+      const minSoldDate = soldWithinMonths
+        ? new Date(Date.now() - soldWithinMonths * 30.44 * 86400000).toISOString().slice(0, 10)
+        : undefined;
       data = await fetchAllStatuses(apiKey, null, polygon, {
         resultsPerPage: 200,
         maxPages: 5,
         boardId,
+        minSoldDate,
       });
     } else {
       data = mockDataset(polygon);
@@ -76,6 +87,11 @@ module.exports = async (req, res) => {
       error = "No comps matched the filters inside this polygon — widen the polygon or the size/bed filters.";
     }
 
+    let asking = null;
+    if (lotAskingPrice && result) {
+      asking = impliedMargin(plan, comps, costs, lotAskingPrice);
+    }
+
     let split = null;
     if (splitScenario && result) {
       split = splitLotScenario(
@@ -88,21 +104,38 @@ module.exports = async (req, res) => {
       );
     }
 
+    const usedSet = new Set(comps.usedKeys || []);
+    const toPoint = (l, status) => ({
+      lat: l.latitude,
+      lon: l.longitude,
+      price: l.price,
+      sqft: l.livingAreaSqft,
+      ppsf: l.livingAreaSqft ? Math.round(l.price / l.livingAreaSqft) : null,
+      beds: l.beds,
+      baths: l.baths,
+      yearBuilt: l.yearBuilt,
+      address: l.address,
+      status,
+      soldDate: l.soldDate,
+      listDate: l.listDate,
+      listingKey: l.listingKey,
+      used: status === "sold" && usedSet.has(l.listingKey),
+    });
+
     res.status(200).json({
       dataSource,
       counts: { sold: soldInPoly.length, pending: pendingInPoly.length, active: activeInPoly.length },
       comps,
       result,
       sensitivity,
+      asking,
       split,
       error,
-      compsPoints: soldInPoly.map((l) => ({
-        lat: l.latitude,
-        lon: l.longitude,
-        price: l.price,
-        sqft: l.livingAreaSqft,
-        ppsf: l.livingAreaSqft ? Math.round(l.price / l.livingAreaSqft) : null,
-      })),
+      compsPoints: [
+        ...soldInPoly.map((l) => toPoint(l, "sold")),
+        ...pendingInPoly.map((l) => toPoint(l, "pending")),
+        ...activeInPoly.map((l) => toPoint(l, "active")),
+      ],
     });
   } catch (err) {
     res.status(500).json({ error: String(err.message || err) });
